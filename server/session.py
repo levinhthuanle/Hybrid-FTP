@@ -11,6 +11,8 @@ from typing import Callable
 from common.config import ServerConfig
 from common.constants import CONTROL_LINE_ENDING, ENCODING, MAX_CONTROL_LINE
 from common.protocol import Command, ReplyCode, format_reply, parse_command
+from transport.udp_sender import UDPSender, TransferError as SenderError
+from transport.udp_receiver import UDPReceiver, TransferError as ReceiverError
 
 from .auth import username_exists, verify
 from .file_manager import FileManager, PathError
@@ -64,6 +66,8 @@ class ClientSession:
 
         self._rnfr_path: Path | None = None
         self._abort = threading.Event()
+
+        self._transfer_id_counter = 0
 
         self._handlers: dict[str, Callable[[Command], None]] = self._build_dispatch()
 
@@ -426,10 +430,21 @@ class ClientSession:
         data_sock = self._open_data_connection()
         if data_sock is None:
             return
-        self._send(ReplyCode.OPENING_DATA_CONNECTION, f"Opening data connection for {cmd.argument}")
-        # --- RDT LAYER HOOK ---
-        data_sock.close()
-        self._send(ReplyCode.TRANSFER_COMPLETE, "STUB: 0 bytes transferred")
+        udp_sock, udp_port = self._open_udp_socket()
+        tid = self._next_transfer_id()
+        self._send(ReplyCode.OPENING_DATA_CONNECTION,
+                   f"Opening UDP data connection port={udp_port} tid={tid} for {cmd.argument}")
+        try:
+            sender = UDPSender(udp_sock, tid,
+                               timeout_s=self._config.udp_timeout_seconds,
+                               max_retries=self._config.udp_max_retries)
+            digest = sender.send_file(path)
+            self._send(ReplyCode.TRANSFER_COMPLETE, f"Transfer complete SHA-256={digest}")
+        except SenderError as exc:
+            self._send(ReplyCode.TRANSFER_ABORTED, f"Transfer failed: {exc}")
+        finally:
+            udp_sock.close()
+            data_sock.close()
 
     def _cmd_stor(self, cmd: Command) -> None:
         if not cmd.argument:
@@ -440,25 +455,13 @@ class ClientSession:
         except PathError as exc:
             self._send(ReplyCode.FILE_UNAVAILABLE, str(exc))
             return
-        data_sock = self._open_data_connection()
-        if data_sock is None:
-            return
-        self._send(ReplyCode.OPENING_DATA_CONNECTION, f"Opening data connection for {cmd.argument}")
-        # --- RDT LAYER HOOK ---
-        data_sock.close()
-        self._send(ReplyCode.TRANSFER_COMPLETE, "STUB: 0 bytes received")
+        self._do_receive(path)
 
     def _cmd_stou(self, cmd: Command) -> None:
         real_cwd = self._real_cwd()
         basename = cmd.argument or "file"
         path = self._fm.unique_path(real_cwd, basename)
-        data_sock = self._open_data_connection()
-        if data_sock is None:
-            return
-        self._send(ReplyCode.OPENING_DATA_CONNECTION, f"Opening data connection; file will be {path.name}")
-        # --- RDT LAYER HOOK ---
-        data_sock.close()
-        self._send(ReplyCode.TRANSFER_COMPLETE, "STUB: 0 bytes received")
+        self._do_receive(path)
 
     def _cmd_appe(self, cmd: Command) -> None:
         if not cmd.argument:
@@ -469,13 +472,7 @@ class ClientSession:
         except PathError as exc:
             self._send(ReplyCode.FILE_UNAVAILABLE, str(exc))
             return
-        data_sock = self._open_data_connection()
-        if data_sock is None:
-            return
-        self._send(ReplyCode.OPENING_DATA_CONNECTION, f"Opening data connection for append to {cmd.argument}")
-        # --- RDT LAYER HOOK ---
-        data_sock.close()
-        self._send(ReplyCode.TRANSFER_COMPLETE, "STUB: 0 bytes appended")
+        self._do_receive(path, append=True)
 
     # ------------------------------------------------------------------
     # File operation commands
@@ -571,3 +568,49 @@ class ClientSession:
     def _real_cwd(self) -> Path:
         """Return the real filesystem path for the current virtual cwd."""
         return self._fm.resolve(str(self._cwd), Path("/"))
+
+    # ------------------------------------------------------------------
+    # UDP transfer helpers
+    # ------------------------------------------------------------------
+
+    def _next_transfer_id(self) -> int:
+        self._transfer_id_counter = (self._transfer_id_counter + 1) & 0xFFFFFFFF
+        return self._transfer_id_counter
+
+    def _open_udp_socket(self) -> tuple[socket.socket, int]:
+        """Bind a UDP socket on a free port and return (sock, port)."""
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.bind((self._config.host, 0))
+        _, port = sock.getsockname()
+        return sock, port
+
+    def _do_receive(self, path: Path, append: bool = False) -> None:
+        """Open data connection, receive file via UDP, report digest."""
+        data_sock = self._open_data_connection()
+        if data_sock is None:
+            return
+        udp_sock, udp_port = self._open_udp_socket()
+        tid = self._next_transfer_id()
+        mode = "append" if append else "store"
+        self._send(ReplyCode.OPENING_DATA_CONNECTION,
+                   f"Opening UDP data connection port={udp_port} tid={tid} ready to {mode} {path.name}")
+        try:
+            receiver = UDPReceiver(udp_sock, tid,
+                                   timeout_s=max(self._config.udp_timeout_seconds * 20, 10.0))
+            dest = path if not append else self._append_dest(path)
+            digest = receiver.receive_file(dest)
+            if append and dest != path:
+                # merge temp file into target
+                with path.open("ab") as dst, dest.open("rb") as src:
+                    dst.write(src.read())
+                dest.unlink()
+            self._send(ReplyCode.TRANSFER_COMPLETE, f"Transfer complete SHA-256={digest}")
+        except ReceiverError as exc:
+            self._send(ReplyCode.TRANSFER_ABORTED, f"Transfer failed: {exc}")
+        finally:
+            udp_sock.close()
+            data_sock.close()
+
+    def _append_dest(self, path: Path) -> Path:
+        """Return a temp path for receiving append data."""
+        return self._fm.unique_path(path.parent, f"_append_{path.name}")

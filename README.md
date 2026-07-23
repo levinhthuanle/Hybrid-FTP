@@ -1,38 +1,100 @@
-hybrid-ftp/
-│
-├── client/
-│   ├── main.py
-│   ├── ftp_client.py
-│   ├── command_handler.py
-│   ├── download/
-│   └── upload/
-│
-├── server/
-│   ├── main.py
-│   ├── ftp_server.py
-│   ├── session.py
-│   ├── auth.py
-│   ├── file_manager.py
-│   └── storage/
-│
-├── common/
-│   ├── packet.py
-│   ├── protocol.py
-│   ├── checksum.py
-│   ├── config.py
-│   └── constants.py
-│
-├── transport/
-│   ├── tcp_control.py
-│   ├── udp_sender.py
-│   ├── udp_receiver.py
-│   └── reliability.py
-│
-├── report/
-│
-├── test_files/
-│   ├── sample.txt
-│   ├── sample.pdf
-│   └── sample.jpg
-│
-└── README.md
+# Hybrid FTP
+
+Đồ án môn **Internetworking Protocol** — hiện thực FTP lai (Hybrid FTP) tách biệt control plane (TCP) và data plane (UDP tự-reliable).
+
+---
+
+## Cấu trúc dự án
+
+```
+common/       Hợp đồng chung: packet UDP, checksum, config, TCP protocol
+transport/    Reliable UDP sender/receiver (Stop-and-Wait ARQ)
+server/       TCP control server, session, auth, file manager
+client/       CLI, TCP control client, UDP transfer
+test/         Unit và integration tests
+test_files/   File mẫu để test (txt, pdf, jpg)
+docs/         Tài liệu kỹ thuật
+```
+
+---
+
+## Yêu cầu
+
+- Python 3.10+
+- Không cần thư viện bên ngoài (chỉ dùng stdlib)
+
+---
+
+## Chạy server
+
+```bash
+python3.10 server/main.py
+```
+
+Server lắng nghe trên `127.0.0.1:2121` (TCP control). Mỗi client được xử lý trên thread riêng.
+
+---
+
+## Chạy client
+
+```bash
+python3.10 client/main.py
+```
+
+Gõ `help` trong REPL để xem danh sách lệnh.
+
+### Phiên mẫu
+
+```
+ftp> connect
+Connected to 127.0.0.1:2121
+
+ftp> login admin 1234
+Logged in.
+
+ftp> put test_files/sample.txt sample.txt
+Uploading ... Upload complete. SHA-256: <digest>
+
+ftp> ls
+-rw-r--r--  ...  sample.txt
+
+ftp> get sample.txt
+Downloading ... Download complete. SHA-256: <digest>
+
+ftp> hash sample.txt
+<digest>
+
+ftp> quit
+```
+
+---
+
+## Chạy tests
+
+```bash
+python3.10 -m unittest discover -s test -v
+```
+
+38 tests — auth, directory, transfer setup, LIST/NLST, file ops, concurrency.
+
+---
+
+## Tài khoản mặc định
+
+| Username | Password |
+|----------|----------|
+| admin | 1234 |
+| anonymous | (trống) |
+
+---
+
+## Tài liệu
+
+| File | Nội dung |
+| --- | --- |
+| `docs/01-architecture.md` | Kiến trúc tổng thể, luồng upload/download |
+| `docs/02-common-module.md` | UDP packet format, checksum, TCP protocol |
+| `docs/03-server.md` | TCP server, state machine, 27 lệnh |
+| `docs/04-ai-prompts.md` | GenAI usage log (yêu cầu đề bài) |
+| `docs/05-transport.md` | Reliable UDP layer (Stop-and-Wait ARQ) |
+| `docs/06-client.md` | Client CLI và FTPClient API |
