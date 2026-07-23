@@ -200,7 +200,6 @@ class FTPClient:
         """
         from transport.udp_sender import UDPSender, TransferError
 
-        # Ask server to receive; it replies with UDP port and transfer_id
         data_sock = self._open_pasv_data()
         code, msg = self._cmd(f"STOR {remote_name}")
         if code != 150:
@@ -230,9 +229,13 @@ class FTPClient:
         Returns the SHA-256 digest confirmed by the server.
         """
         from transport.udp_receiver import UDPReceiver, TransferError
-        from common.checksum import sha256_file
 
         local_path.parent.mkdir(parents=True, exist_ok=True)
+
+        try:
+            total_bytes = self.size(remote_name)
+        except FTPError:
+            total_bytes = 0
 
         data_sock = self._open_pasv_data()
         code, msg = self._cmd(f"RETR {remote_name}")
@@ -241,15 +244,15 @@ class FTPClient:
             raise FTPError(code, msg)
 
         udp_port, tid = self._parse_udp_params(msg)
-        udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        udp_sock.bind((self._cfg.host, 0))
-        udp_sock.connect((self._cfg.host, udp_port))
 
-        # tell server our UDP port (piggyback via the established data_sock)
-        _, my_port = udp_sock.getsockname()
+        # bind client UDP socket and tell server our port via data socket
+        udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        udp_sock.bind(("127.0.0.1", 0))
+        _, my_udp_port = udp_sock.getsockname()
+        data_sock.sendall(f"{my_udp_port}\n".encode())
 
         try:
-            receiver = UDPReceiver(udp_sock, tid)
+            receiver = UDPReceiver(udp_sock, tid, total_bytes=total_bytes)
             digest = receiver.receive_file(local_path)
         except TransferError as exc:
             raise FTPError(0, str(exc)) from exc

@@ -16,11 +16,31 @@ Protocol overview
 from __future__ import annotations
 
 import socket
+import sys
 from pathlib import Path
+from typing import Callable
 
 from common.checksum import sha256_file
 from common.constants import PacketFlag
 from common.packet import UDPPacket, PacketError
+
+ProgressCallback = Callable[[int, int], None]  # (bytes_received, total_bytes)
+
+
+def _progress_bar(received: int, total: int) -> None:
+    if total <= 0:
+        pct_str = "???"
+        bar = "░" * 30
+        sys.stderr.write(f"\r  [{bar}] {pct_str}  {received:,} bytes  ")
+    else:
+        pct = received / total
+        filled = int(pct * 30)
+        bar = "█" * filled + "░" * (30 - filled)
+        sys.stderr.write(f"\r  [{bar}] {pct*100:5.1f}%  {received:,}/{total:,} bytes  ")
+    sys.stderr.flush()
+    if total > 0 and received >= total:
+        sys.stderr.write("\n")
+        sys.stderr.flush()
 
 
 class TransferError(IOError):
@@ -47,24 +67,25 @@ class UDPReceiver:
         sock: socket.socket,
         transfer_id: int,
         timeout_s: float = 10.0,
+        total_bytes: int = 0,
+        progress: ProgressCallback | None = None,
     ) -> None:
         self._sock = sock
         self._tid = transfer_id
         self._timeout = timeout_s
+        self._total = total_bytes
+        self._progress = progress
         self._sock.settimeout(timeout_s)
 
     def receive_file(self, dest: Path) -> str:
         """Receive the incoming transfer and write it to *dest*.
 
         Returns the SHA-256 hex digest of the written file.
-
-        Raises
-        ------
-        TransferError
-            On timeout or unrecoverable protocol error.
         """
         expected_seq = 0
+        received = 0
         sender_addr: tuple[str, int] | None = None
+        cb = self._progress or _progress_bar
 
         with dest.open("wb") as fh:
             while True:
@@ -76,7 +97,6 @@ class UDPReceiver:
                 try:
                     pkt = UDPPacket.from_bytes(raw)
                 except PacketError:
-                    # corrupted datagram — drop, sender will retransmit
                     continue
 
                 if pkt.transfer_id != self._tid:
@@ -85,7 +105,6 @@ class UDPReceiver:
                 if sender_addr is None:
                     sender_addr = addr
 
-                # FIN — transfer complete
                 if PacketFlag.FIN in pkt.flags:
                     fin_ack = UDPPacket(
                         PacketFlag.FIN_ACK,
@@ -100,6 +119,8 @@ class UDPReceiver:
 
                 if pkt.sequence == expected_seq:
                     fh.write(pkt.payload)
+                    received += len(pkt.payload)
+                    cb(received, self._total)
                     ack = UDPPacket(
                         PacketFlag.ACK,
                         self._tid,
@@ -108,7 +129,6 @@ class UDPReceiver:
                     self._sock.sendto(ack.to_bytes(), sender_addr)
                     expected_seq += 1
                 else:
-                    # duplicate or out-of-order — re-ACK last good seq
                     last_ack_seq = expected_seq - 1 if expected_seq > 0 else 0
                     ack = UDPPacket(
                         PacketFlag.ACK,
@@ -116,5 +136,10 @@ class UDPReceiver:
                         acknowledgement=last_ack_seq,
                     )
                     self._sock.sendto(ack.to_bytes(), sender_addr)
+
+        # ensure final newline if total was unknown
+        if self._total <= 0:
+            sys.stderr.write(f"\r  [{'█'*30}]  {received:,} bytes  \n")
+            sys.stderr.flush()
 
         return sha256_file(dest)

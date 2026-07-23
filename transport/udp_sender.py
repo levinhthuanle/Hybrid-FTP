@@ -18,13 +18,29 @@ Protocol overview
 from __future__ import annotations
 
 import socket
+import sys
 import time
 from pathlib import Path
-from typing import IO
+from typing import Callable
 
 from common.checksum import sha256_file
 from common.constants import MAX_UDP_PAYLOAD, PacketFlag
 from common.packet import UDPPacket, PacketError
+
+ProgressCallback = Callable[[int, int], None]  # (bytes_sent, total_bytes)
+
+
+def _progress_bar(sent: int, total: int) -> None:
+    if total <= 0:
+        return
+    pct = sent / total
+    filled = int(pct * 30)
+    bar = "█" * filled + "░" * (30 - filled)
+    sys.stderr.write(f"\r  [{bar}] {pct*100:5.1f}%  {sent:,}/{total:,} bytes  ")
+    sys.stderr.flush()
+    if sent >= total:
+        sys.stderr.write("\n")
+        sys.stderr.flush()
 
 
 class TransferError(IOError):
@@ -54,28 +70,29 @@ class UDPSender:
         transfer_id: int,
         timeout_s: float = 0.5,
         max_retries: int = 10,
+        progress: ProgressCallback | None = None,
     ) -> None:
         self._sock = sock
         self._tid = transfer_id
         self._timeout = timeout_s
         self._max_retries = max_retries
+        self._progress = progress
         self._sock.settimeout(timeout_s)
 
     def send_file(self, path: Path) -> str:
-        """Transmit *path* and return its SHA-256 digest.
-
-        Raises
-        ------
-        TransferError
-            If the remote side does not ACK within the retry budget.
-        """
+        """Transmit *path* and return its SHA-256 digest."""
+        total = path.stat().st_size
+        sent = 0
         seq = 0
+        cb = self._progress or _progress_bar
         with path.open("rb") as fh:
             while True:
                 chunk = fh.read(MAX_UDP_PAYLOAD)
                 if not chunk:
                     break
                 self._send_data(seq, chunk)
+                sent += len(chunk)
+                cb(sent, total)
                 seq += 1
         self._send_fin(seq)
         return sha256_file(path)

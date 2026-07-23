@@ -434,6 +434,14 @@ class ClientSession:
         tid = self._next_transfer_id()
         self._send(ReplyCode.OPENING_DATA_CONNECTION,
                    f"Opening UDP data connection port={udp_port} tid={tid} for {cmd.argument}")
+        # Read client's UDP port from data socket (client sends "udp_port\n")
+        client_udp_port = self._read_client_udp_port(data_sock)
+        if client_udp_port is None:
+            udp_sock.close()
+            data_sock.close()
+            return
+        client_host = self._addr[0]
+        udp_sock.connect((client_host, client_udp_port))
         try:
             sender = UDPSender(udp_sock, tid,
                                timeout_s=self._config.udp_timeout_seconds,
@@ -614,3 +622,18 @@ class ClientSession:
     def _append_dest(self, path: Path) -> Path:
         """Return a temp path for receiving append data."""
         return self._fm.unique_path(path.parent, f"_append_{path.name}")
+
+    def _read_client_udp_port(self, data_sock: socket.socket) -> int | None:
+        """Read the client's UDP port number from the TCP data socket."""
+        try:
+            data_sock.settimeout(5)
+            buf = b""
+            while b"\n" not in buf:
+                chunk = data_sock.recv(32)
+                if not chunk:
+                    break
+                buf += chunk
+            return int(buf.strip())
+        except (OSError, ValueError) as exc:
+            self._send(ReplyCode.CANNOT_OPEN_DATA_CONNECTION, f"Cannot read client UDP port: {exc}")
+            return None
