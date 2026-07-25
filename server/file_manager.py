@@ -26,22 +26,48 @@ class FileManager:
 
     def resolve(self, virtual_path: str, cwd: Path) -> Path:
         """Resolve *virtual_path* relative to *cwd* and assert it stays inside root."""
-        if virtual_path.startswith("/"):
-            candidate = self._root / virtual_path.lstrip("/")
-        else:
-            candidate = self._root / str(cwd).lstrip("/") / virtual_path
+        parts = self._virtual_parts(virtual_path, cwd)
+        candidate = self._root.joinpath(*parts)
         resolved = candidate.resolve()
-        if not str(resolved).startswith(str(self._root)):
+        try:
+            resolved.relative_to(self._root)
+        except ValueError:
             raise PathError(f"path escapes storage root: {virtual_path!r}")
         return resolved
 
     def to_virtual(self, real_path: Path) -> str:
         """Convert an absolute real path back to a virtual path string."""
         try:
-            rel = real_path.relative_to(self._root)
+            rel = real_path.resolve().relative_to(self._root)
         except ValueError:
             return "/"
-        return "/" + str(rel)
+        if str(rel) == ".":
+            return "/"
+        return "/" + "/".join(rel.parts)
+
+    def _virtual_parts(self, virtual_path: str, cwd: Path) -> list[str]:
+        """Return POSIX-style FTP path parts, independent of host OS separators."""
+        raw_path = str(virtual_path).replace("\\", "/")
+        raw_cwd = str(cwd).replace("\\", "/")
+
+        if raw_path.startswith("/"):
+            combined = raw_path
+        else:
+            if raw_cwd in ("", "."):
+                raw_cwd = "/"
+            combined = f"{raw_cwd.rstrip('/')}/{raw_path}"
+
+        parts: list[str] = []
+        for part in combined.split("/"):
+            if part in ("", "."):
+                continue
+            if part == "..":
+                if not parts:
+                    raise PathError(f"path escapes storage root: {virtual_path!r}")
+                parts.pop()
+                continue
+            parts.append(part)
+        return parts
 
     # ------------------------------------------------------------------
     # Directory operations
