@@ -42,16 +42,11 @@
 \@writefile{toc}{\contentsline {section}{\numberline {6}GenAI Usage \& Code Refinement Log}{8}{section.6}\protected@file@percent }
 \@writefile{toc}{\contentsline {section}{\numberline {7}Application Demo Evidence}{8}{section.7}\protected@file@percent }
 \@writefile{toc}{\contentsline {subsection}{\numberline {7.1}Recorded CLI Transcript and Hash Comparison}{8}{subsection.7.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {7.2}Automated Evidence}{9}{subsection.7.2}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {5}{\ignorespaces Successful upload in the client terminal.}}{9}{figure.5}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {6}{\ignorespaces Successful download and SHA-256 comparison.}}{9}{figure.6}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {7}{\ignorespaces Connected-client/session evidence.}}{9}{figure.7}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {8}{\ignorespaces Concurrent-session test evidence.}}{9}{figure.8}\protected@file@percent }
-\gdef \LT@iv {\LT@entry 
-    {1}{256.38425pt}\LT@entry 
-    {1}{97.04881pt}}
-\bibcite{rfc959}{1}
-\bibcite{projectrepo}{2}
-\@writefile{toc}{\contentsline {subsection}{\numberline {7.3}Demo Checklist for Submission}{10}{subsection.7.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {A}Submission Completion Checklist}{10}{appendix.A}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.2}Captured Runtime Evidence}{8}{subsection.7.2}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {5}{\ignorespaces Basic passive-mode upload. The client trace shows TCP connection and login, PASV coordination, STOR, the 150 readiness reply, the 226 completion reply, and the resulting SHA-256 digest.}}{9}{figure.5}\protected@file@percent }
+\newlabel{fig:basic-upload}{{5}{9}{Basic passive-mode upload. The client trace shows TCP connection and login, PASV coordination, STOR, the 150 readiness reply, the 226 completion reply, and the resulting SHA-256 digest}{figure.5}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {6}{\ignorespaces Active-mode upload of an image file (binary payload). The trace uses PORT coordination before STOR and completes the reliable UDP transfer with a SHA-256 digest, demonstrating that the active path preserves binary data integrity.}}{10}{figure.6}\protected@file@percent }
+\newlabel{fig:active-binary-upload}{{6}{10}{Active-mode upload of an image file (binary payload). The trace uses PORT coordination before STOR and completes the reliable UDP transfer with a SHA-256 digest, demonstrating that the active path preserves binary data integrity}{figure.6}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {7}{\ignorespaces Concurrent-session evidence. Two client connections remain active simultaneously, with distinct client endpoints/session activity recorded by the server.}}{10}{figure.7}\protected@file@percent }
+\newlabel{fig:concurrent-sessions}{{7}{10}{Concurrent-session evidence. Two client connections remain active simultaneously, with distinct client endpoints/session activity recorded by the server}{figure.7}{}}
 \gdef \@abspage@last{12}

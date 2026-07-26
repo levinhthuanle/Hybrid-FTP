@@ -37,10 +37,22 @@ class FTPClient:
         client.quit()
     """
 
-    def __init__(self, config: ClientConfig | None = None) -> None:
+    def __init__(
+        self,
+        config: ClientConfig | None = None,
+        *,
+        trace_control: bool = False,
+    ) -> None:
+        """Create a client.
+
+        Set ``trace_control`` for an interactive CLI session to show the
+        control-channel commands and exact FTP replies returned by the server.
+        It remains disabled by default for library consumers and tests.
+        """
         self._cfg = config or ClientConfig()
         self._sock: socket.socket | None = None
         self._buf = b""
+        self._trace_control = trace_control
 
     # ------------------------------------------------------------------
     # Connection lifecycle
@@ -338,6 +350,9 @@ class FTPClient:
 
     def _cmd(self, line: str) -> tuple[int, str]:
         """Send *line* and return (code, message)."""
+        if self._trace_control:
+            display_line = "PASS ******" if line.startswith("PASS ") else line
+            print(f"--> {display_line}")
         self._sock.sendall((line + "\r\n").encode(ENCODING))
         return self._read_reply()
 
@@ -353,6 +368,9 @@ class FTPClient:
             if len(line) >= 4 and line[3] == "-":
                 continue
         last = lines[-1]
+        if self._trace_control:
+            for reply_line in lines:
+                print(f"<-- {reply_line}")
         code = int(last[:3])
         message = last[4:]
         return code, message

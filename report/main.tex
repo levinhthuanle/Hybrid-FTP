@@ -446,67 +446,37 @@ ftp> quit
 Disconnected.
 \end{lstlisting}
 
-\subsection{Automated Evidence}
+\subsection{Captured Runtime Evidence}
 
-% \begin{table}[htbp]
-% \centering
-% \begin{tabularx}{\textwidth}{@{}P{42mm}Y P{29mm}@{}}
-% \toprule
-% \textbf{Evidence category} & \textbf{Coverage} & \textbf{Recorded result} \\
-% \midrule
-% Control and session behavior & Authentication, reply codes, directories, metadata, PASV/PORT setup, errors, and cleanup. & 67-test full suite: OK \\
-% Reliable UDP behavior & DATA loss, ACK loss, duplicate DATA, out-of-order DATA, dropped FIN, packet validation. & Focused tests: OK \\
-% File transfer integrity & Text, binary, empty, boundary, multi-packet, large-file, round-trip, and SHA-256 transfer paths. & Integration tests: OK \\
-% Active mode and ABOR & Binary active upload/download; aborted upload creates no final file; session accepts NOOP after abort. & Integration tests: OK \\
-% Concurrent sessions & Two clients hold independent session state while using one server. & Integration test: OK \\
-% \bottomrule
-% \end{tabularx}
-% \caption{Automated evidence included in the current repository.}
-% \end{table}
+The following uncropped terminal captures provide direct runtime evidence for the core upload path, active-mode binary transfer, and concurrent session handling.
 
-\evidenceplaceholder{Successful upload in the client terminal.}{an uncropped image such as \code{figures/upload.png}, showing connect, login, STOR, 150, 226, and SHA-256.}
-\evidenceplaceholder{Successful download and SHA-256 comparison.}{an uncropped image such as \code{figures/download-hash.png}, showing HASH and GET results with matching digest values.}
-\evidenceplaceholder{Connected-client/session evidence.}{a server-terminal screenshot or a runtime client/session table. If the server does not render a live table, document two simultaneous connections with timestamped server logs.}
-\evidenceplaceholder{Concurrent-session test evidence.}{a screenshot of two client terminals, or the complete output of the two-client automated test with command and timestamp.}
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth,height=0.76\textheight,keepaspectratio]{figures/BasicUpload.png}
+  \caption{Basic passive-mode upload. The client trace shows TCP connection and login, PASV coordination, STOR, the 150 readiness reply, the 226 completion reply, and the resulting SHA-256 digest.}
+  \label{fig:basic-upload}
+\end{figure}
 
-\subsection{Demo Checklist for Submission}
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth,height=0.76\textheight,keepaspectratio]{figures/ActiveUpload.png}
+  \caption{Active-mode upload of an image file (binary payload). The trace uses PORT coordination before STOR and completes the reliable UDP transfer with a SHA-256 digest, demonstrating that the active path preserves binary data integrity.}
+  \label{fig:active-binary-upload}
+\end{figure}
 
-\begin{itemize}
-  \item \placeholder{Insert actual screenshot filenames and captions; do not submit gray placeholders.}
-  \item Confirm the screenshot shows a successful TCP connection, authentication, upload, remote hash, download, and matching SHA-256 values.
-  \item Demonstrate a binary file and at least one directory operation during the live defense.
-  \item Run \code{python -m unittest discover -s test -v} on the demonstration environment and save the terminal output.
-  \item Have each team member explain their assigned matrix rows, TCP/UDP separation, Stop-and-Wait, Active/Passive setup, and ABOR behavior.
-\end{itemize}
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth,height=0.76\textheight,keepaspectratio]{figures/Concurence.png}
+  \caption{Concurrent-session evidence. Two client connections remain active simultaneously, with distinct client endpoints/session activity recorded by the server.}
+  \label{fig:concurrent-sessions}
+\end{figure}
 
-\appendix
-\section{Submission Completion Checklist}
 
-\begin{longtable}{@{}P{88mm}P{32mm}@{}}
-\toprule
-\textbf{Item} & \textbf{Status before submission} \\
-\midrule
-\endfirsthead
-\toprule
-\textbf{Item} & \textbf{Status before submission} \\
-\midrule
-\endhead
-Technical sections 1--3 are reviewed against the final code. & \placeholder{Student sign-off} \\
-Task Assignment Matrix has real names and responsibilities. & \placeholder{Student sign-off} \\
-Self-assessment and peer-evaluation statements are written by members. & \placeholder{Student sign-off} \\
-Contribution percentages sum to 100\%. & \placeholder{Student sign-off} \\
-Exact prompts and unedited raw AI output are attached honestly. & \placeholder{Student sign-off} \\
-Upload, download, hash, server/session, and concurrency screenshots are embedded. & \placeholder{Student sign-off} \\
-Latest full test output is attached or reproducible. & \placeholder{Student sign-off} \\
-Both members can explain their assigned implementation. & \placeholder{Student sign-off} \\
-\bottomrule
-\end{longtable}
-
-\begin{thebibliography}{9}
-\bibitem{rfc959}
-J. Postel and J. Reynolds. \textit{File Transfer Protocol}. RFC 959, October 1985.
-\bibitem{projectrepo}
-Hybrid FTP project repository: source modules under \code{common/}, \code{transport/}, \code{server/}, \code{client/}, and \code{test/}; project documentation under \code{docs/}.
-\end{thebibliography}
+% \begin{thebibliography}{9}
+% \bibitem{rfc959}
+% J. Postel and J. Reynolds. \textit{File Transfer Protocol}. RFC 959, October 1985.
+% \bibitem{projectrepo}
+% Hybrid FTP project repository: source modules under \code{common/}, \code{transport/}, \code{server/}, \code{client/}, and \code{test/}; project documentation under \code{docs/}.
+% \end{thebibliography}
 
 \end{document}

@@ -15,6 +15,4 @@
 \contentsline {section}{\numberline {6}GenAI Usage \& Code Refinement Log}{8}{section.6}%
 \contentsline {section}{\numberline {7}Application Demo Evidence}{8}{section.7}%
 \contentsline {subsection}{\numberline {7.1}Recorded CLI Transcript and Hash Comparison}{8}{subsection.7.1}%
-\contentsline {subsection}{\numberline {7.2}Automated Evidence}{9}{subsection.7.2}%
-\contentsline {subsection}{\numberline {7.3}Demo Checklist for Submission}{10}{subsection.7.3}%
-\contentsline {section}{\numberline {A}Submission Completion Checklist}{10}{appendix.A}%
+\contentsline {subsection}{\numberline {7.2}Captured Runtime Evidence}{8}{subsection.7.2}%

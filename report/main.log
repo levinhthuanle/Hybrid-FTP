@@ -1,4 +1,4 @@
-This is XeTeX, Version 3.141592653-2.6-0.999995 (MiKTeX 24.1) (preloaded format=xelatex 2026.7.26)  26 JUL 2026 17:13
+This is XeTeX, Version 3.141592653-2.6-0.999995 (MiKTeX 24.1) (preloaded format=xelatex 2026.7.26)  26 JUL 2026 18:11
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -985,20 +985,29 @@ Overfull \hbox (2.06583pt too wide) in paragraph at lines 397--397
 
 [7
 
-] [8] [9] [10] (main.aux)
+]
+File: figures/BasicUpload.png Graphic file (type bmp)
+<figures/BasicUpload.png>
+ [8]
+File: figures/ActiveUpload.png Graphic file (type bmp)
+<figures/ActiveUpload.png>
+ [9]
+File: figures/Concurence.png Graphic file (type bmp)
+<figures/Concurence.png>
+ [10] (main.aux)
  ***********
 LaTeX2e <2023-11-01> patch level 1
 L3 programming layer <2024-01-04>
  ***********
 Package rerunfilecheck Info: File `main.out' has not changed.
-(rerunfilecheck)             Checksum: 2B7CD71F4FEC6B89FDD39C4C8BFD4ABD;4023.
+(rerunfilecheck)             Checksum: D43E82EBE03354CAA0D574B7B507B061;3643.
  ) 
 Here is how much of TeX's memory you used:
- 29364 strings out of 409617
- 597443 string characters out of 5781118
+ 29374 strings out of 409617
+ 597553 string characters out of 5781118
  1995191 words of memory out of 5000000
- 51047 multiletter control sequences out of 15000+600000
- 561560 words of font info for 95 fonts, out of 8000000 for 9000
+ 51059 multiletter control sequences out of 15000+600000
+ 561512 words of font info for 89 fonts, out of 8000000 for 9000
  1348 hyphenation exceptions out of 8191
  83i,12n,93p,1195b,944s stack positions out of 10000i,1000n,20000p,200000b,200000s
 

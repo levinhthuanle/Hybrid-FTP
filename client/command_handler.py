@@ -194,7 +194,8 @@ class CLI:
         host = args[0] if args else "127.0.0.1"
         port = int(args[1]) if len(args) > 1 else 2121
         cfg = ClientConfig(host=host, control_port=port)
-        self._client = FTPClient(cfg)
+        # Show the live TCP control exchange in every interactive CLI session.
+        self._client = FTPClient(cfg, trace_control=True)
         greeting = self._client.connect()
         print(f"Connected to {host}:{port} — {greeting}")
 
