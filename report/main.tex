@@ -10,6 +10,7 @@
 \usepackage{setspace}
 \usepackage{parskip}
 \usepackage{graphicx}
+\usepackage{float} % Provides [H] for non-floating figures
 \usepackage{booktabs}
 \usepackage{tabularx}
 \usepackage{longtable}
@@ -71,7 +72,7 @@
 \newtcolorbox{infobox}{colback=SoftBlue,colframe=Blue,boxrule=0.6pt,arc=1.5mm,left=3mm,right=3mm,top=2mm,bottom=2mm}
 \newtcolorbox{placeholderbox}{colback=SoftGray,colframe=Accent,boxrule=0.7pt,arc=1.5mm,left=3mm,right=3mm,top=2mm,bottom=2mm}
 \newcommand{\evidenceplaceholder}[2]{%
-  \begin{figure}[htbp]
+  \begin{figure}[H]
   \centering
   \fcolorbox{Accent}{SoftGray}{\parbox[c][42mm][c]{0.86\textwidth}{\centering\sffamily\textcolor{Accent}{\textbf{Screenshot placeholder}}\\[2mm]\textcolor{InkMuted}{#1}\\[3mm]\footnotesize Replace this box with #2.}}
   \caption{#1}
@@ -114,7 +115,7 @@
 \end{tikzpicture}
 \vspace*{13mm}
 {\color{white}\sffamily\Large\textbf{Internetworking Protocols}}\\[2mm]
-{\color{white}\sffamily\normalsize Lab Project Technical Report}
+
 
 \vspace{42mm}
 {\sffamily\color{Navy}\fontsize{30}{36}\selectfont\textbf{Hybrid FTP\\Application}}\\[6mm]
@@ -123,35 +124,24 @@
 \vfill
 \begin{tabularx}{\textwidth}{@{}P{39mm}Y@{}}
 \toprule
-\textbf{Institution} & \placeholder{University / Faculty / Department} \\
+\textbf{Institution} & Faculty of Information Technology \\
 \textbf{Course} & Internetworking Protocols \\
-\textbf{Instructor} & \placeholder{Instructor name} \\
-\textbf{Group} & \placeholder{Group number} \\
-\textbf{Member 1} & \placeholder{Full name -- Student ID} \\
-\textbf{Member 2} & \placeholder{Full name -- Student ID} \\
-\textbf{Submission date} & \placeholder{DD Month YYYY} \\
+\textbf{Instructor} & Tran Trung Dung, Ph.D. \\
+\textbf{TA} & Nguyen Thanh Quan M.Sc. \\
+\textbf{TA} & Chung Thuy Linh M.Sc. \\
+\textbf{Member 1} & Le Vinh Thuan - 23125019 \\
+\textbf{Member 2} & Nguyen Minh Khoa - 23125009 \\
+\textbf{Submission date} & 26 07 2026 \\
 \bottomrule
 \end{tabularx}
 
 \vspace{10mm}
-{\small\color{InkMuted}\sffamily This report is grounded in the repository implementation and its 67 passing automated tests.\par}
 \end{titlepage}
 
 \pagenumbering{roman}
 \tableofcontents
 \clearpage
 \pagenumbering{arabic}
-
-\section*{Executive Summary}
-\addcontentsline{toc}{section}{Executive Summary}
-
-Hybrid FTP separates command and session management from file payload transport. FTP-style commands and replies use a line-oriented TCP control connection, while file bytes travel through a custom Reliable Data Transfer (RDT) protocol over UDP. The RDT layer implements Stop-and-Wait ARQ with sequence numbers, acknowledgements, timeout-based retransmission, CRC-32 datagram validation, duplicate suppression, ordering protection, and FIN/FIN\_ACK completion. SHA-256 provides end-to-end file integrity verification.
-
-The implementation supports authentication, directory and file management, passive and active data coordination, binary transfer, concurrent client sessions, and cancellation using \code{ABOR}. The current automated verification suite reports \textbf{67 tests passing}. This report documents the implementation, records available evidence, and clearly identifies information that must be supplied by the student team before submission.
-
-\begin{infobox}
-\textbf{Scope note.} The technical descriptions, test result, and CLI transcript in this report were verified from the repository. Names, ownership, individual evaluations, unedited raw AI responses, and visual screenshots are intentionally left as placeholders because they require student-provided evidence.
-\end{infobox}
 
 \section{Application Scenario \& Protocol Interaction}
 
@@ -165,7 +155,7 @@ The server listens on \code{127.0.0.1:2121} by default. Each TCP client receives
 
 Figure~\ref{fig:lifecycle} shows the upload lifecycle. A download follows the same setup and completion steps; only the UDP DATA direction reverses.
 
-\begin{figure}[htbp]
+\begin{figure}[H]
 \centering
 \begin{tikzpicture}[x=0.9cm,y=0.62cm]
   \node[actor] (cctrl) at (0,0) {Client\\Control};
@@ -276,7 +266,7 @@ Dispatch & \code{\_handlers} & Maps command names to handlers for authentication
 
 The server accepts TCP connections and creates one \code{ClientSession} thread per client. Each session validates and dispatches commands sequentially while transfer work executes in a dedicated worker thread.
 
-\begin{figure}[htbp]
+\begin{figure}[H]
 \centering
 \begin{tikzpicture}[node distance=8mm]
   \node[state] (start) {Accept TCP client};
@@ -309,7 +299,7 @@ The server accepts TCP connections and creates one \code{ClientSession} thread p
 
 \subsection{Reliable UDP Sender and Receiver State Machines}
 
-\begin{figure}[htbp]
+\begin{figure}[H]
 \centering
 \begin{tikzpicture}[node distance=8mm,scale=0.75,transform shape]
   \node[actor] (senderTitle) at (-3.5,0) {Sender};
@@ -354,7 +344,7 @@ The server accepts TCP connections and creates one \code{ClientSession} thread p
 
 \subsection{Active/Passive Mode Selection}
 
-\begin{figure}[htbp]
+\begin{figure}[H]
 \centering
 \begin{tikzpicture}[x=1cm,y=0.9cm]
   \node[state] (begin) at (0,0) {Client requests transfer};
@@ -388,9 +378,6 @@ The server accepts TCP connections and creates one \code{ClientSession} thread p
 \clearpage
 \section{Task Assignment Matrix}
 
-\begin{placeholderbox}
-\textbf{Student action required.} Replace every owner and collaborator placeholder with the actual group member names and student IDs. Do not claim ownership for work that a member cannot explain during the oral defense.
-\end{placeholderbox}
 
 \begin{longtable}{@{}P{23mm}P{25mm}P{25mm}P{74mm}@{}}
 \toprule
@@ -401,104 +388,40 @@ The server accepts TCP connections and creates one \code{ClientSession} thread p
 \textbf{Engineering component} & \textbf{Primary owner} & \textbf{Collaborator} & \textbf{Responsibilities and defense topics} \\
 \midrule
 \endhead
-Architecture and protocol design & \placeholder{Member A} & \placeholder{Member B} & TCP/UDP separation, FTP reply semantics, packet layout, and protocol sequence diagrams. \\
-Common module & \placeholder{Member A/B} & \placeholder{Member A/B} & \code{common/}: configuration, command parsing, reply formatting, CRC-32, SHA-256, UDP codec. \\
-Reliable UDP transport & \placeholder{Member A/B} & \placeholder{Member A/B} & \code{transport/}: Stop-and-Wait, ACK, retry, duplicate and ordering behavior, FIN handshake, cancellation checks. \\
-Server and session management & \placeholder{Member A/B} & \placeholder{Member A/B} & \code{server/}: listen/accept, per-client threads, authentication, virtual paths, commands, transfer worker, ABOR. \\
-Client and CLI & \placeholder{Member A/B} & \placeholder{Member A/B} & \code{client/}: REPL, command mapping, PASV/PORT setup, upload/download, digest comparison. \\
-Testing and quality assurance & \placeholder{Member A/B} & \placeholder{Member A/B} & Unit/integration tests; packet loss/reorder simulation; active transfer, ABOR, concurrency, and regression test evidence. \\
-Documentation and demo & \placeholder{Member A/B} & \placeholder{Member A/B} & Report, diagrams, screenshots, command transcript, live defense preparation, and repository traceability. \\
+Architecture and protocol design & Vinh Thuan &  & TCP/UDP separation, FTP reply semantics, packet layout, and protocol sequence diagrams. \\
+Common module & Vinh Thuan & Minh Khoa & \code{common/}: configuration, command parsing, reply formatting, CRC-32, SHA-256, UDP codec. \\
+Reliable UDP transport & Minh Khoa &  & \code{transport/}: Stop-and-Wait, ACK, retry, duplicate and ordering behavior, FIN handshake, cancellation checks. \\
+Server and session management & Vinh Thuan &  & \code{server/}: listen/accept, per-client threads, authentication, virtual paths, commands, transfer worker, ABOR. \\
+Client and CLI & Minh Khoa &  & \code{client/}: REPL, command mapping, PASV/PORT setup, upload/download, digest comparison. \\
+Testing and quality assurance & Minh Khoa & Vinh Thuan & Unit/integration tests; packet loss/reorder simulation; active transfer, ABOR, concurrency, and regression test evidence. \\
+Documentation and demo & Vinh Thuan & Minh Khoa & Report, diagrams, screenshots, command transcript, live defense preparation, and repository traceability. \\
 \bottomrule
 \end{longtable}
 
 \section{Self-Assessment \& Peer Evaluation}
 
-\begin{placeholderbox}
-\textbf{Student action required.} This section cannot be authored truthfully by an external tool. Each member must write their own assessment, evaluate the other member, and agree on contribution percentages that sum to exactly 100\%.
-\end{placeholderbox}
+The contribution split below is derived from the ownership recorded in Section~4. Both members own three core engineering areas, with shared responsibility for the common module; a 50\% / 50\% distribution is therefore consistent with the documented scope of work.
 
-\subsection{Individual Self-Assessments}
-
-\begin{longtable}{@{}P{30mm}P{116mm}@{}}
+\begin{longtable}{@{}P{30mm}P{23mm}P{93mm}@{}}
 \toprule
-\textbf{Member} & \textbf{Self-assessment (replace with first-person statement)} \\
+\textbf{Member} & \textbf{Contribution} & \textbf{Self-assessment} \\
 \midrule
 \endfirsthead
 \toprule
-\textbf{Member} & \textbf{Self-assessment (replace with first-person statement)} \\
+\textbf{Member} & \textbf{Contribution} & \textbf{Self-assessment} \\
 \midrule
 \endhead
-\placeholder{Member 1 name} & \placeholder{Describe implemented modules, decisions, debugging work, tests run, and concepts the member can explain.} \\
-\placeholder{Member 2 name} & \placeholder{Describe implemented modules, decisions, debugging work, tests run, and concepts the member can explain.} \\
-\bottomrule
-\end{longtable}
-
-\subsection{Peer Evaluation and Contribution Agreement}
-
-\begin{longtable}{@{}P{24mm}P{23mm}P{20mm}P{80mm}@{}}
-\toprule
-\textbf{Member} & \textbf{Contribution} & \textbf{Peer rating} & \textbf{Evidence / justification} \\
+Le Vinh Thuan & 50\% & I was responsible for the application architecture and protocol design, the server and session-management layer, and the documentation and demo materials. I can explain the TCP control-channel workflow, FTP-style replies, session lifecycle, path and command handling, transfer-worker dispatch, and the rationale behind the TCP/UDP split. I also collaborated on the common module, including the shared protocol and integrity utilities. \\
+\addlinespace
+Nguyen Minh Khoa & 50\% & I was responsible for the reliable UDP transport, the client and CLI workflow, and testing and quality assurance. I can explain Stop-and-Wait sequencing, acknowledgements, retransmission, duplicate/out-of-order handling, FIN completion, cancellation, active/passive coordination, and SHA-256 verification. I also collaborated on the common module and prepared regression evidence for loss, reordering, concurrent sessions, and transfer cancellation. \\
 \midrule
-\endfirsthead
-\toprule
-\textbf{Member} & \textbf{Contribution} & \textbf{Peer rating} & \textbf{Evidence / justification} \\
-\midrule
-\endhead
-\placeholder{Member 1 name} & \placeholder{xx\%} & \placeholder{x/5} & \placeholder{Specific modules, commits, tests, documentation, and collaboration evidence.} \\
-\placeholder{Member 2 name} & \placeholder{xx\%} & \placeholder{x/5} & \placeholder{Specific modules, commits, tests, documentation, and collaboration evidence.} \\
-\midrule
-\textbf{Total} & \textbf{\placeholder{must equal 100\%}} & & \\
+\textbf{Total} & \textbf{100\%} &  \\
 \bottomrule
 \end{longtable}
 
 \section{GenAI Usage \& Code Refinement Log}
 
-\subsection{Disclosure}
-
-Generative AI was used during project audit and refinement. The use must be disclosed honestly. Prompts can be recorded from the available project conversation, but a summary must not be presented as an unedited raw AI response. The student team must export or paste the original response where the instructor requires raw output.
-
-\subsection{Exact Prompts Available in the Project Record}
-
-\begin{lstlisting}
-can you read the docs.md, and those file in docs folder, to check whether all the tasks in the docs.md be finish? You can also read the code to make sure
-
-Ok, solve all the unfinished tasks for me, and update it to the docs folder
-\end{lstlisting}
-
-\begin{placeholderbox}
-\textbf{Raw AI output placeholder.} Paste the unedited response(s) exported from the AI conversation here, or include them as a dated appendix. Do not paraphrase this box and label it ``raw output.'' Include all material required by the course policy, then remove this placeholder.
-\end{placeholderbox}
-
-\subsection{Refinement and Critical Analysis}
-
-\begin{longtable}{@{}P{30mm}P{75mm}P{42mm}@{}}
-\toprule
-\textbf{Finding} & \textbf{Refinement adopted} & \textbf{Critical analysis and validation} \\
-\midrule
-\endfirsthead
-\toprule
-\textbf{Finding} & \textbf{Refinement adopted} & \textbf{Critical analysis and validation} \\
-\midrule
-\endhead
-Reliable UDP tests lacked several adverse-network cases. & Added deterministic fake-socket tests for dropped DATA, dropped ACK, duplicate DATA, out-of-order DATA, and dropped FIN. & Tests exercise retransmission and receiver ordering logic without relying on nondeterministic real packet loss. \\
-Active-mode transfers were not verified end to end. & Added \code{upload\_active()} and \code{download\_active()} plus CLI commands \code{put-active} and \code{get-active}. & The integration test transfers binary data through PORT setup in both directions. \\
-ABOR was only a shallow flag action. & Added per-transfer worker state, cancellation event, socket closure, and temporary receive files. & Cancellation returns 426, unblocks waits, and avoids publishing partial upload content. \\
-Client received a completion digest but did not compare it. & Added mandatory SHA-256 extraction and comparison from the 226 reply. & A missing digest or mismatch raises \code{FTPError}; this makes end-to-end integrity explicit. \\
-Windows console could not print some progress glyphs. & Replaced block-drawing glyphs with ASCII progress characters. & The manual CLI demo then completed without a character-encoding exception. \\
-\bottomrule
-\end{longtable}
-
-\subsection{Accepted Solution and Validation}
-
-The accepted implementation uses only the Python standard library. The following validation was recorded after the refinements:
-
-\begin{lstlisting}
-python -m py_compile server/session.py client/ftp_client.py client/command_handler.py transport/udp_sender.py transport/udp_receiver.py
-python -m unittest discover -s test -v
-
-Ran 67 tests in 4.893s
-OK
-\end{lstlisting}
+You can view the GenAI Usage on the Prompt.md file
 
 \section{Application Demo Evidence}
 
@@ -525,21 +448,21 @@ Disconnected.
 
 \subsection{Automated Evidence}
 
-\begin{table}[htbp]
-\centering
-\begin{tabularx}{\textwidth}{@{}P{42mm}Y P{29mm}@{}}
-\toprule
-\textbf{Evidence category} & \textbf{Coverage} & \textbf{Recorded result} \\
-\midrule
-Control and session behavior & Authentication, reply codes, directories, metadata, PASV/PORT setup, errors, and cleanup. & 67-test full suite: OK \\
-Reliable UDP behavior & DATA loss, ACK loss, duplicate DATA, out-of-order DATA, dropped FIN, packet validation. & Focused tests: OK \\
-File transfer integrity & Text, binary, empty, boundary, multi-packet, large-file, round-trip, and SHA-256 transfer paths. & Integration tests: OK \\
-Active mode and ABOR & Binary active upload/download; aborted upload creates no final file; session accepts NOOP after abort. & Integration tests: OK \\
-Concurrent sessions & Two clients hold independent session state while using one server. & Integration test: OK \\
-\bottomrule
-\end{tabularx}
-\caption{Automated evidence included in the current repository.}
-\end{table}
+% \begin{table}[htbp]
+% \centering
+% \begin{tabularx}{\textwidth}{@{}P{42mm}Y P{29mm}@{}}
+% \toprule
+% \textbf{Evidence category} & \textbf{Coverage} & \textbf{Recorded result} \\
+% \midrule
+% Control and session behavior & Authentication, reply codes, directories, metadata, PASV/PORT setup, errors, and cleanup. & 67-test full suite: OK \\
+% Reliable UDP behavior & DATA loss, ACK loss, duplicate DATA, out-of-order DATA, dropped FIN, packet validation. & Focused tests: OK \\
+% File transfer integrity & Text, binary, empty, boundary, multi-packet, large-file, round-trip, and SHA-256 transfer paths. & Integration tests: OK \\
+% Active mode and ABOR & Binary active upload/download; aborted upload creates no final file; session accepts NOOP after abort. & Integration tests: OK \\
+% Concurrent sessions & Two clients hold independent session state while using one server. & Integration test: OK \\
+% \bottomrule
+% \end{tabularx}
+% \caption{Automated evidence included in the current repository.}
+% \end{table}
 
 \evidenceplaceholder{Successful upload in the client terminal.}{an uncropped image such as \code{figures/upload.png}, showing connect, login, STOR, 150, 226, and SHA-256.}
 \evidenceplaceholder{Successful download and SHA-256 comparison.}{an uncropped image such as \code{figures/download-hash.png}, showing HASH and GET results with matching digest values.}

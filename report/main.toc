@@ -1,0 +1,20 @@
+\contentsline {section}{\numberline {1}Application Scenario \& Protocol Interaction}{1}{section.1}%
+\contentsline {subsection}{\numberline {1.1}Application Scenario}{1}{subsection.1.1}%
+\contentsline {subsection}{\numberline {1.2}Full TCP + UDP Lifecycle}{1}{subsection.1.2}%
+\contentsline {subsection}{\numberline {1.3}Interaction Rules}{1}{subsection.1.3}%
+\contentsline {section}{\numberline {2}Project-Wide Data Structures}{2}{section.2}%
+\contentsline {subsection}{\numberline {2.1}TCP Control Packet Format}{2}{subsection.2.1}%
+\contentsline {subsection}{\numberline {2.2}Reliable UDP Header}{2}{subsection.2.2}%
+\contentsline {subsection}{\numberline {2.3}Session Management Structures}{3}{subsection.2.3}%
+\contentsline {section}{\numberline {3}Functional Workflows}{3}{section.3}%
+\contentsline {subsection}{\numberline {3.1}Server Thread-Dispatch Logic}{3}{subsection.3.1}%
+\contentsline {subsection}{\numberline {3.2}Reliable UDP Sender and Receiver State Machines}{5}{subsection.3.2}%
+\contentsline {subsection}{\numberline {3.3}Active/Passive Mode Selection}{6}{subsection.3.3}%
+\contentsline {section}{\numberline {4}Task Assignment Matrix}{7}{section.4}%
+\contentsline {section}{\numberline {5}Self-Assessment \& Peer Evaluation}{7}{section.5}%
+\contentsline {section}{\numberline {6}GenAI Usage \& Code Refinement Log}{8}{section.6}%
+\contentsline {section}{\numberline {7}Application Demo Evidence}{8}{section.7}%
+\contentsline {subsection}{\numberline {7.1}Recorded CLI Transcript and Hash Comparison}{8}{subsection.7.1}%
+\contentsline {subsection}{\numberline {7.2}Automated Evidence}{9}{subsection.7.2}%
+\contentsline {subsection}{\numberline {7.3}Demo Checklist for Submission}{10}{subsection.7.3}%
+\contentsline {section}{\numberline {A}Submission Completion Checklist}{10}{appendix.A}%
