@@ -75,7 +75,7 @@ ftp> quit
 python3.10 -m unittest discover -s test -v
 ```
 
-38 tests — auth, directory, transfer setup, LIST/NLST, file ops, concurrency.
+67 tests - auth, directories, passive/active transfer, ABOR, integrity, concurrency, and reliable-UDP loss/reorder.
 
 ---
 
@@ -98,3 +98,10 @@ python3.10 -m unittest discover -s test -v
 | `docs/04-ai-prompts.md` | GenAI usage log (yêu cầu đề bài) |
 | `docs/05-transport.md` | Reliable UDP layer (Stop-and-Wait ARQ) |
 | `docs/06-client.md` | Client CLI và FTPClient API |
+
+
+---
+
+## Current verification (2026-07-26)
+
+The latest full test run is **67 tests, OK**. Reliable UDP loss/reorder coverage, active-mode file transfers, real ABOR cancellation, and digest comparison are implemented. See `docs/07-demo-evidence.md` for the manual CLI/hash transcript and `docs.md` for the audit completion status.

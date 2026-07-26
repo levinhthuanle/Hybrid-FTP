@@ -45,3 +45,10 @@ python -m unittest discover -s test -v
 ```
 
 Test hiện kiểm tra packet round-trip, phát hiện dữ liệu bị sửa, parser và formatter. Test transport sau này sẽ mô phỏng mất packet, duplicate và reorder.
+
+
+---
+
+## Current verification correction (2026-07-26)
+
+The earlier statement that transport loss/reorder tests would be added later is superseded. The test suite now includes focused fake-socket coverage for dropped DATA, dropped ACK, duplicate DATA, out-of-order DATA, and dropped FIN, in addition to packet CRC validation and end-to-end transfer tests. The latest full run is 67 tests passing; see `docs/05-transport.md` and `docs/07-demo-evidence.md`.

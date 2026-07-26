@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import socket
 import sys
+import threading
 import time
 from pathlib import Path
 from typing import Callable
@@ -35,7 +36,7 @@ def _progress_bar(sent: int, total: int) -> None:
         return
     pct = sent / total
     filled = int(pct * 30)
-    bar = "█" * filled + "░" * (30 - filled)
+    bar = "#" * filled + "-" * (30 - filled)
     sys.stderr.write(f"\r  [{bar}] {pct*100:5.1f}%  {sent:,}/{total:,} bytes  ")
     sys.stderr.flush()
     if sent >= total:
@@ -71,12 +72,14 @@ class UDPSender:
         timeout_s: float = 0.5,
         max_retries: int = 10,
         progress: ProgressCallback | None = None,
+        cancel_event: threading.Event | None = None,
     ) -> None:
         self._sock = sock
         self._tid = transfer_id
         self._timeout = timeout_s
         self._max_retries = max_retries
         self._progress = progress
+        self._cancel_event = cancel_event
         self._sock.settimeout(timeout_s)
 
     def send_file(self, path: Path) -> str:
@@ -87,6 +90,7 @@ class UDPSender:
         cb = self._progress or _progress_bar
         with path.open("rb") as fh:
             while True:
+                self._raise_if_cancelled()
                 chunk = fh.read(MAX_UDP_PAYLOAD)
                 if not chunk:
                     break
@@ -105,6 +109,7 @@ class UDPSender:
         pkt = UDPPacket(PacketFlag.DATA, self._tid, sequence=seq, payload=payload)
         raw = pkt.to_bytes()
         for attempt in range(self._max_retries + 1):
+            self._raise_if_cancelled()
             self._sock.send(raw)
             ack = self._wait_ack(seq)
             if ack:
@@ -117,6 +122,7 @@ class UDPSender:
         pkt = UDPPacket(PacketFlag.FIN, self._tid, sequence=seq)
         raw = pkt.to_bytes()
         for attempt in range(self._max_retries + 1):
+            self._raise_if_cancelled()
             self._sock.send(raw)
             try:
                 data = self._sock.recv(65535)
@@ -131,6 +137,7 @@ class UDPSender:
     def _wait_ack(self, expected_seq: int) -> bool:
         deadline = time.monotonic() + self._timeout
         while time.monotonic() < deadline:
+            self._raise_if_cancelled()
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 break
@@ -145,3 +152,7 @@ class UDPSender:
             if PacketFlag.ACK in pkt.flags and pkt.acknowledgement == expected_seq:
                 return True
         return False
+
+    def _raise_if_cancelled(self) -> None:
+        if self._cancel_event is not None and self._cancel_event.is_set():
+            raise TransferError("transfer cancelled")

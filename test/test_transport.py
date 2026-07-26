@@ -76,6 +76,77 @@ class DuplicateDataSocket:
         return len(data)
 
 
+class DataLossSocket(AckLossSocket):
+    """Fake sender socket whose receiver drops the first DATA datagram."""
+
+    def recv(self, size: int) -> bytes:
+        last = self.sent_packets[-1]
+        if PacketFlag.DATA in last.flags:
+            self.data_recv_calls += 1
+            if self.data_recv_calls == 1:
+                raise socket.timeout
+            return UDPPacket(
+                PacketFlag.ACK,
+                self.transfer_id,
+                acknowledgement=last.sequence,
+            ).to_bytes()
+        if PacketFlag.FIN in last.flags:
+            return UDPPacket(
+                PacketFlag.FIN_ACK,
+                self.transfer_id,
+                acknowledgement=last.sequence,
+            ).to_bytes()
+        raise socket.timeout
+
+
+class FinLossSocket:
+    """Fake sender socket whose receiver drops the first FIN datagram."""
+
+    def __init__(self, transfer_id: int) -> None:
+        self.transfer_id = transfer_id
+        self.sent_packets: list[UDPPacket] = []
+        self.fin_recv_calls = 0
+
+    def settimeout(self, timeout: float) -> None:
+        self.timeout = timeout
+
+    def send(self, data: bytes) -> int:
+        self.sent_packets.append(UDPPacket.from_bytes(data))
+        return len(data)
+
+    def recv(self, size: int) -> bytes:
+        last = self.sent_packets[-1]
+        if PacketFlag.DATA in last.flags:
+            return UDPPacket(
+                PacketFlag.ACK,
+                self.transfer_id,
+                acknowledgement=last.sequence,
+            ).to_bytes()
+        if PacketFlag.FIN in last.flags:
+            self.fin_recv_calls += 1
+            if self.fin_recv_calls == 1:
+                raise socket.timeout
+            return UDPPacket(
+                PacketFlag.FIN_ACK,
+                self.transfer_id,
+                acknowledgement=last.sequence,
+            ).to_bytes()
+        raise socket.timeout
+
+
+class OutOfOrderDataSocket(DuplicateDataSocket):
+    """Fake bound socket that delivers seq=1 before seq=0."""
+
+    def __init__(self, transfer_id: int) -> None:
+        super().__init__(transfer_id)
+        self.datagrams = [
+            UDPPacket(PacketFlag.DATA, transfer_id, sequence=1, payload=b"def").to_bytes(),
+            UDPPacket(PacketFlag.DATA, transfer_id, sequence=0, payload=b"abc").to_bytes(),
+            UDPPacket(PacketFlag.DATA, transfer_id, sequence=1, payload=b"def").to_bytes(),
+            UDPPacket(PacketFlag.FIN, transfer_id, sequence=2).to_bytes(),
+        ]
+
+
 class ReliableUDPBehaviorTests(unittest.TestCase):
     def test_sender_retransmits_data_when_ack_is_lost(self) -> None:
         transfer_id = 42
@@ -113,6 +184,54 @@ class ReliableUDPBehaviorTests(unittest.TestCase):
         ack_packets = [p for p in fake_socket.sent_acks if PacketFlag.ACK in p.flags]
         self.assertEqual([p.acknowledgement for p in ack_packets], [0, 0, 1])
         self.assertTrue(any(PacketFlag.FIN_ACK in p.flags for p in fake_socket.sent_acks))
+
+
+    def test_sender_retransmits_when_data_is_dropped(self) -> None:
+        transfer_id = 9
+        fake_socket = DataLossSocket(transfer_id)
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "payload.bin"
+            path.write_bytes(b"lost once")
+            UDPSender(
+                fake_socket,
+                transfer_id,
+                timeout_s=0.01,
+                max_retries=2,
+                progress=lambda _sent, _total: None,
+            ).send_file(path)
+        data_packets = [p for p in fake_socket.sent_packets if PacketFlag.DATA in p.flags]
+        self.assertEqual([p.sequence for p in data_packets], [0, 0])
+
+    def test_receiver_recovers_after_out_of_order_data(self) -> None:
+        transfer_id = 10
+        fake_socket = OutOfOrderDataSocket(transfer_id)
+        with tempfile.TemporaryDirectory() as tmp:
+            dest = Path(tmp) / "received.bin"
+            UDPReceiver(
+                fake_socket,
+                transfer_id,
+                timeout_s=0.01,
+                progress=lambda _received, _total: None,
+            ).receive_file(dest)
+            self.assertEqual(dest.read_bytes(), b"abcdef")
+        ack_packets = [p for p in fake_socket.sent_acks if PacketFlag.ACK in p.flags]
+        self.assertEqual([p.acknowledgement for p in ack_packets], [0, 0, 1])
+
+    def test_sender_retransmits_fin_when_fin_is_dropped(self) -> None:
+        transfer_id = 11
+        fake_socket = FinLossSocket(transfer_id)
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "payload.bin"
+            path.write_bytes(b"fin retry")
+            UDPSender(
+                fake_socket,
+                transfer_id,
+                timeout_s=0.01,
+                max_retries=2,
+                progress=lambda _sent, _total: None,
+            ).send_file(path)
+        fin_packets = [p for p in fake_socket.sent_packets if PacketFlag.FIN in p.flags]
+        self.assertEqual([p.sequence for p in fin_packets], [1, 1])
 
 
 if __name__ == "__main__":

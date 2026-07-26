@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import socket
 import sys
+import threading
 from pathlib import Path
 from typing import Callable
 
@@ -30,12 +31,12 @@ ProgressCallback = Callable[[int, int], None]  # (bytes_received, total_bytes)
 def _progress_bar(received: int, total: int) -> None:
     if total <= 0:
         pct_str = "???"
-        bar = "░" * 30
+        bar = "-" * 30
         sys.stderr.write(f"\r  [{bar}] {pct_str}  {received:,} bytes  ")
     else:
         pct = received / total
         filled = int(pct * 30)
-        bar = "█" * filled + "░" * (30 - filled)
+        bar = "#" * filled + "-" * (30 - filled)
         sys.stderr.write(f"\r  [{bar}] {pct*100:5.1f}%  {received:,}/{total:,} bytes  ")
     sys.stderr.flush()
     if total > 0 and received >= total:
@@ -69,12 +70,14 @@ class UDPReceiver:
         timeout_s: float = 10.0,
         total_bytes: int = 0,
         progress: ProgressCallback | None = None,
+        cancel_event: threading.Event | None = None,
     ) -> None:
         self._sock = sock
         self._tid = transfer_id
         self._timeout = timeout_s
         self._total = total_bytes
         self._progress = progress
+        self._cancel_event = cancel_event
         self._sock.settimeout(timeout_s)
 
     def receive_file(self, dest: Path) -> str:
@@ -89,6 +92,7 @@ class UDPReceiver:
 
         with dest.open("wb") as fh:
             while True:
+                self._raise_if_cancelled()
                 try:
                     raw, addr = self._sock.recvfrom(65535)
                 except socket.timeout:
@@ -139,7 +143,11 @@ class UDPReceiver:
 
         # ensure final newline if total was unknown
         if self._total <= 0:
-            sys.stderr.write(f"\r  [{'█'*30}]  {received:,} bytes  \n")
+            sys.stderr.write(f"\r  [{'#'*30}]  {received:,} bytes  \n")
             sys.stderr.flush()
 
         return sha256_file(dest)
+
+    def _raise_if_cancelled(self) -> None:
+        if self._cancel_event is not None and self._cancel_event.is_set():
+            raise TransferError("transfer cancelled")

@@ -221,7 +221,7 @@ class FTPClient:
         code, msg = self._read_reply()
         if code != 226:
             raise FTPError(code, msg)
-        return digest
+        return self._verify_transfer_digest(digest, msg)
 
     def download(self, remote_name: str, local_path: Path) -> str:
         """Download *remote_name* from the server to *local_path*.
@@ -263,9 +263,76 @@ class FTPClient:
         code, msg = self._read_reply()
         if code != 226:
             raise FTPError(code, msg)
-        return digest
+        return self._verify_transfer_digest(digest, msg)
 
     # ------------------------------------------------------------------
+    def upload_active(self, local_path: Path, remote_name: str) -> str:
+        """Upload with active-mode TCP data setup and reliable UDP payloads."""
+        from transport.udp_sender import UDPSender, TransferError
+        listener = self._open_active_listener()
+        data_sock: socket.socket | None = None
+        udp_sock: socket.socket | None = None
+        try:
+            code, msg = self._cmd(f"STOR {remote_name}")
+            if code != 150:
+                raise FTPError(code, msg)
+            data_sock = self._accept_active_data(listener)
+            listener = None
+            udp_port, tid = self._parse_udp_params(msg)
+            udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            udp_sock.connect((self._cfg.host, udp_port))
+            digest = UDPSender(udp_sock, tid).send_file(local_path)
+        except TransferError as exc:
+            raise FTPError(0, str(exc)) from exc
+        finally:
+            if udp_sock is not None:
+                udp_sock.close()
+            if data_sock is not None:
+                data_sock.close()
+            if listener is not None:
+                listener.close()
+        code, msg = self._read_reply()
+        if code != 226:
+            raise FTPError(code, msg)
+        return self._verify_transfer_digest(digest, msg)
+
+    def download_active(self, remote_name: str, local_path: Path) -> str:
+        """Download with active-mode TCP data setup and reliable UDP payloads."""
+        from transport.udp_receiver import UDPReceiver, TransferError
+        local_path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            total_bytes = self.size(remote_name)
+        except FTPError:
+            total_bytes = 0
+        listener = self._open_active_listener()
+        data_sock: socket.socket | None = None
+        udp_sock: socket.socket | None = None
+        try:
+            code, msg = self._cmd(f"RETR {remote_name}")
+            if code != 150:
+                raise FTPError(code, msg)
+            data_sock = self._accept_active_data(listener)
+            listener = None
+            udp_port, tid = self._parse_udp_params(msg)
+            udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            udp_sock.bind((self._cfg.host, 0))
+            _, my_udp_port = udp_sock.getsockname()
+            data_sock.sendall(f"{my_udp_port}\n".encode())
+            digest = UDPReceiver(udp_sock, tid, total_bytes=total_bytes).receive_file(local_path)
+        except TransferError as exc:
+            raise FTPError(0, str(exc)) from exc
+        finally:
+            if udp_sock is not None:
+                udp_sock.close()
+            if data_sock is not None:
+                data_sock.close()
+            if listener is not None:
+                listener.close()
+        code, msg = self._read_reply()
+        if code != 226:
+            raise FTPError(code, msg)
+        return self._verify_transfer_digest(digest, msg)
+
     # Internal helpers
     # ------------------------------------------------------------------
 
@@ -310,6 +377,46 @@ class FTPClient:
         host = ".".join(nums[:4])
         port = int(nums[4]) * 256 + int(nums[5])
         return socket.create_connection((host, port), timeout=10)
+
+    def _open_active_listener(self) -> socket.socket:
+        """Listen locally, advertise PORT, and return the pending data listener."""
+        try:
+            octets = [int(part) for part in self._cfg.host.split(".")]
+            if len(octets) != 4 or any(not 0 <= octet <= 255 for octet in octets):
+                raise ValueError
+        except ValueError as exc:
+            raise FTPError(501, "Active mode requires an IPv4 client host") from exc
+        listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        listener.bind((self._cfg.host, 0))
+        listener.listen(1)
+        listener.settimeout(10)
+        _, port = listener.getsockname()
+        p1, p2 = port >> 8, port & 0xFF
+        endpoint = ",".join([*(str(octet) for octet in octets), str(p1), str(p2)])
+        code, msg = self._cmd(f"PORT {endpoint}")
+        if code != 200:
+            listener.close()
+            raise FTPError(code, msg)
+        return listener
+
+    @staticmethod
+    def _accept_active_data(listener: socket.socket) -> socket.socket:
+        try:
+            conn, _ = listener.accept()
+            return conn
+        finally:
+            listener.close()
+
+    @staticmethod
+    def _verify_transfer_digest(local_digest: str, reply_msg: str) -> str:
+        marker = "SHA-256="
+        if marker not in reply_msg:
+            raise FTPError(226, "Server transfer reply did not include a SHA-256 digest")
+        server_digest = reply_msg.split(marker, 1)[1].split()[0]
+        if server_digest != local_digest:
+            raise FTPError(426, "SHA-256 mismatch after transfer")
+        return local_digest
 
     def _transfer_list(self, cmd_line: str) -> list[str]:
         """Open PASV data connection, send cmd_line, return lines received."""

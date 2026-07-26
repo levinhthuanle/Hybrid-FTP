@@ -293,5 +293,31 @@ class AppendTests(TransferTestBase):
         self.assertEqual(result, b"brand new\n")
 
 
+class ActiveAndAbortTests(TransferTestBase):
+
+    def test_active_mode_upload_and_download(self) -> None:
+        content = bytes(range(256)) * 8
+        with tempfile.TemporaryDirectory() as upload_dir:
+            source = Path(upload_dir) / "active.bin"
+            source.write_bytes(content)
+            upload_digest = self._client.upload_active(source, "active.bin")
+        destination = Path(self._downloads.name) / "active.bin"
+        download_digest = self._client.download_active("active.bin", destination)
+        self.assertEqual(upload_digest, download_digest)
+        self.assertEqual(destination.read_bytes(), content)
+
+    def test_abor_cancels_waiting_upload_without_creating_target(self) -> None:
+        data_sock = self._client._open_pasv_data()
+        code, _ = self._client._cmd("STOR aborted.bin")
+        self.assertEqual(code, 150)
+        code, _ = self._client._cmd("ABOR")
+        self.assertEqual(code, 426)
+        data_sock.close()
+        time.sleep(0.05)
+        self.assertFalse((Path(self._storage.name) / "aborted.bin").exists())
+        code, _ = self._client._cmd("NOOP")
+        self.assertEqual(code, 200)
+
+
 if __name__ == "__main__":
     unittest.main()

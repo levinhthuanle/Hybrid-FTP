@@ -279,3 +279,22 @@ Tất cả 38 test pass sau khi wire RDT layer vào session (không có test nà
 | `docs/05-transport.md` | 50% | 50% |
 | `docs/06-client.md` | 50% | 50% |
 | `README.md` | 60% | 40% |
+
+
+---
+
+## Session 3 - Audit completion and refinement (2026-07-26)
+
+Exact user requests:
+
+```text
+can you read the docs.md, and those file in docs folder, to check whether all the tasks in the docs.md be finish? You can also read the code to make sure
+
+Ok, solve all the unfinished tasks for me, and update it to the docs folder
+```
+
+Accepted refinements: added loss/reorder/FIN-loss transport tests; made RETR/STOR/STOU/APPE asynchronous and cancellable; implemented active-mode upload/download in the client API and CLI; made the client compare the 226 SHA-256 value with its local digest; and corrected stale documentation.
+
+Validation used: `python -m py_compile server/session.py client/ftp_client.py transport/udp_sender.py transport/udp_receiver.py` and `python -m unittest discover -s test -v` (67 tests passing).
+
+Academic-integrity note: this repository records prompts and an accurate refinement summary, not a fabricated raw model transcript. If the course requires unedited raw AI output, export the actual Codex conversation and attach it before submission.

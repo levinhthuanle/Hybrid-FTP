@@ -814,10 +814,38 @@ SUPERSEDED: The immediately preceding BROKEN status applied before the P0 fix. A
 - [ ] Both members have read `docs.md`.
 - [ ] Both members can explain assigned code.
 
-### Current Remaining Tasks
+### Historical Remaining Tasks (completed 2026-07-26)
 
 1. Add a real or simulated dropped-DATA/out-of-order/FIN-loss transport test.
 2. Add a manual CLI demo log for `connect`, `login`, `put`, `get`, `hash`, and `quit`.
 3. Verify or explicitly document active-mode file transfer limitations.
 4. Improve `ABOR` from shallow flag setting to real transfer cancellation if required by grading scope.
 5. Clean up stale docs in `docs/*.md` or mark them superseded from `docs.md` references.
+
+
+---
+
+## Completion Update 2026-07-26
+
+All five technical tasks listed under the earlier `Current Remaining Tasks` heading are complete. That heading and all earlier BROKEN/PARTIAL statements are historical audit records, superseded by this update.
+
+| Former task | Completion evidence |
+| --- | --- |
+| Dropped-DATA / out-of-order / FIN-loss transport coverage | Added focused tests for dropped DATA, dropped ACK, duplicate DATA, out-of-order DATA, and dropped FIN. |
+| Manual CLI demonstration | A successful connect, login, put, hash, get, delete, and quit transcript with matching SHA-256 values is in `docs/07-demo-evidence.md`. |
+| Active-mode file transfers | Implemented in `FTPClient.upload_active()` / `download_active()` and exposed as `put-active` / `get-active`; binary upload/download is covered by an integration test. |
+| Real ABOR cancellation | The server cancels a live worker, closes transfer sockets, returns 426, and protects uploads with temporary files; covered by an integration test. |
+| Stale module documents | Each file in `docs/` now has a dated correction; `docs/07-demo-evidence.md` contains the current cross-document evidence. |
+
+### Current technical status
+
+- TCP control and reliable UDP payload transfer: implemented.
+- Passive and active transfer coordination: implemented and tested.
+- Integrity: client and server verify matching SHA-256 transfer digests.
+- Reliability: Stop-and-Wait retransmission, duplicate suppression, ordering protection, CRC-32, and FIN/FIN_ACK are tested.
+- Cancellation: ABOR is functional for a live transfer and does not publish a partial upload.
+- Latest verification: `python -m unittest discover -s test -v` - 67 tests, OK.
+
+### Submission items that require student-provided facts
+
+These are intentionally not invented by the code audit: named task owners, contribution percentages totaling 100%, peer evaluations, and actual terminal screenshots if the instructor requires images rather than the reproducible transcript. The technical transcript and hash evidence are available in `docs/07-demo-evidence.md`.

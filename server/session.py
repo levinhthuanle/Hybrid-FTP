@@ -65,8 +65,11 @@ class ClientSession:
         self._pasv_sock: socket.socket | None = None
 
         self._rnfr_path: Path | None = None
-        self._abort = threading.Event()
-
+        self._send_lock = threading.Lock()
+        self._transfer_lock = threading.Lock()
+        self._transfer_thread: threading.Thread | None = None
+        self._transfer_cancel: threading.Event | None = None
+        self._transfer_sockets: set[socket.socket] = set()
         self._transfer_id_counter = 0
 
         self._handlers: dict[str, Callable[[Command], None]] = self._build_dispatch()
@@ -90,6 +93,7 @@ class ClientSession:
                 if not self._dispatch(cmd):
                     break
         finally:
+            self._cancel_active_transfer()
             self._close_pasv_listener()
 
     def _readline(self) -> str | None:
@@ -109,11 +113,12 @@ class ClientSession:
             return None
 
     def _send(self, code: ReplyCode | int, message: str) -> None:
-        self._log(f"[{self._addr[0]}:{self._addr[1]}] >> {int(code)} {message}")
-        try:
-            self._conn.sendall(format_reply(code, message))
-        except OSError:
-            pass
+        with self._send_lock:
+            self._log(f"[{self._addr[0]}:{self._addr[1]}] >> {int(code)} {message}")
+            try:
+                self._conn.sendall(format_reply(code, message))
+            except OSError:
+                pass
 
     def _send_multiline(self, code: ReplyCode | int, lines: list[str]) -> None:
         """Send a multi-line FTP reply: first line uses '-', last uses ' '."""
@@ -129,10 +134,11 @@ class ClientSession:
             parts.append(f" {line}{CONTROL_LINE_ENDING}")
         parts.append(f"{c} {lines[-1]}{CONTROL_LINE_ENDING}")
         payload = "".join(parts).encode(ENCODING)
-        try:
-            self._conn.sendall(payload)
-        except OSError:
-            pass
+        with self._send_lock:
+            try:
+                self._conn.sendall(payload)
+            except OSError:
+                pass
 
     # ------------------------------------------------------------------
     # Dispatch
@@ -179,6 +185,11 @@ class ClientSession:
         if cmd.name not in _PREAUTH_COMMANDS and self._auth_state != AuthState.LOGGED_IN:
             self._send(ReplyCode.NOT_LOGGED_IN, "Please login with USER and PASS")
             return True
+        if self._transfer_is_active() and cmd.name not in {"ABOR", "QUIT"}:
+            self._send(ReplyCode.FILE_UNAVAILABLE_TRANSIENT, "Transfer already in progress")
+            return True
+        if cmd.name == "QUIT":
+            self._cancel_active_transfer()
         handler(cmd)
         return cmd.name != "QUIT"
 
@@ -442,17 +453,11 @@ class ClientSession:
             return
         client_host = self._addr[0]
         udp_sock.connect((client_host, client_udp_port))
-        try:
-            sender = UDPSender(udp_sock, tid,
-                               timeout_s=self._config.udp_timeout_seconds,
-                               max_retries=self._config.udp_max_retries)
-            digest = sender.send_file(path)
-            self._send(ReplyCode.TRANSFER_COMPLETE, f"Transfer complete SHA-256={digest}")
-        except SenderError as exc:
-            self._send(ReplyCode.TRANSFER_ABORTED, f"Transfer failed: {exc}")
-        finally:
-            udp_sock.close()
-            data_sock.close()
+        self._start_transfer(
+            lambda cancel: self._send_file(path, udp_sock, data_sock, tid, cancel),
+            udp_sock,
+            data_sock,
+        )
 
     def _cmd_stor(self, cmd: Command) -> None:
         if not cmd.argument:
@@ -530,8 +535,10 @@ class ClientSession:
         self._send(ReplyCode.FILE_ACTION_OK, "Rename successful")
 
     def _cmd_abor(self, cmd: Command) -> None:
-        self._abort.set()
-        self._send(ReplyCode.TRANSFER_ABORTED, "Abort requested")
+        if self._cancel_active_transfer():
+            self._send(ReplyCode.TRANSFER_ABORTED, "Transfer aborted")
+        else:
+            self._send(ReplyCode.TRANSFER_COMPLETE, "No transfer in progress")
 
     def _cmd_help(self, cmd: Command) -> None:
         commands = sorted(self._handlers.keys())
@@ -602,26 +609,140 @@ class ClientSession:
         mode = "append" if append else "store"
         self._send(ReplyCode.OPENING_DATA_CONNECTION,
                    f"Opening UDP data connection port={udp_port} tid={tid} ready to {mode} {path.name}")
-        try:
-            receiver = UDPReceiver(udp_sock, tid,
-                                   timeout_s=max(self._config.udp_timeout_seconds * 20, 10.0))
-            dest = path if not append else self._append_dest(path)
-            digest = receiver.receive_file(dest)
-            if append and dest != path:
-                # merge temp file into target
-                with path.open("ab") as dst, dest.open("rb") as src:
-                    dst.write(src.read())
-                dest.unlink()
-            self._send(ReplyCode.TRANSFER_COMPLETE, f"Transfer complete SHA-256={digest}")
-        except ReceiverError as exc:
-            self._send(ReplyCode.TRANSFER_ABORTED, f"Transfer failed: {exc}")
-        finally:
-            udp_sock.close()
-            data_sock.close()
+        self._start_transfer(
+            lambda cancel: self._receive_file(path, append, udp_sock, data_sock, tid, cancel),
+            udp_sock,
+            data_sock,
+        )
 
     def _append_dest(self, path: Path) -> Path:
-        """Return a temp path for receiving append data."""
-        return self._fm.unique_path(path.parent, f"_append_{path.name}")
+        """Return a temporary sibling path for a UDP receive operation."""
+        return self._fm.unique_path(path.parent, f"_transfer_{path.name}")
+
+    def _send_file(
+        self,
+        path: Path,
+        udp_sock: socket.socket,
+        data_sock: socket.socket,
+        tid: int,
+        cancel: threading.Event,
+    ) -> None:
+        try:
+            sender = UDPSender(
+                udp_sock,
+                tid,
+                timeout_s=self._config.udp_timeout_seconds,
+                max_retries=self._config.udp_max_retries,
+                cancel_event=cancel,
+            )
+            digest = sender.send_file(path)
+            if not cancel.is_set():
+                self._finish_transfer(cancel, udp_sock, data_sock)
+                self._send(ReplyCode.TRANSFER_COMPLETE, f"Transfer complete SHA-256={digest}")
+        except (SenderError, OSError) as exc:
+            if not cancel.is_set():
+                self._send(ReplyCode.TRANSFER_ABORTED, f"Transfer failed: {exc}")
+        finally:
+            self._finish_transfer(cancel, udp_sock, data_sock)
+
+    def _receive_file(
+        self,
+        path: Path,
+        append: bool,
+        udp_sock: socket.socket,
+        data_sock: socket.socket,
+        tid: int,
+        cancel: threading.Event,
+    ) -> None:
+        temp_dest = self._append_dest(path)
+        try:
+            receiver = UDPReceiver(
+                udp_sock,
+                tid,
+                timeout_s=max(self._config.udp_timeout_seconds * 20, 10.0),
+                cancel_event=cancel,
+            )
+            digest = receiver.receive_file(temp_dest)
+            if cancel.is_set():
+                return
+            if append:
+                with path.open("ab") as dst, temp_dest.open("rb") as src:
+                    dst.write(src.read())
+                temp_dest.unlink()
+            else:
+                temp_dest.replace(path)
+            self._finish_transfer(cancel, udp_sock, data_sock)
+            self._send(ReplyCode.TRANSFER_COMPLETE, f"Transfer complete SHA-256={digest}")
+        except (ReceiverError, OSError) as exc:
+            if not cancel.is_set():
+                self._send(ReplyCode.TRANSFER_ABORTED, f"Transfer failed: {exc}")
+        finally:
+            if temp_dest.exists():
+                try:
+                    temp_dest.unlink()
+                except OSError:
+                    pass
+            self._finish_transfer(cancel, udp_sock, data_sock)
+
+    def _start_transfer(
+        self,
+        worker: Callable[[threading.Event], None],
+        *sockets: socket.socket,
+    ) -> None:
+        cancel = threading.Event()
+        with self._transfer_lock:
+            if self._transfer_thread is not None:
+                already_running = True
+            else:
+                already_running = False
+                self._transfer_cancel = cancel
+                self._transfer_sockets = set(sockets)
+                thread = threading.Thread(
+                    target=worker,
+                    args=(cancel,),
+                    daemon=True,
+                    name=f"transfer-{self._addr[0]}:{self._addr[1]}",
+                )
+                self._transfer_thread = thread
+        if already_running:
+            for sock in sockets:
+                try:
+                    sock.close()
+                except OSError:
+                    pass
+            self._send(ReplyCode.FILE_UNAVAILABLE_TRANSIENT, "Transfer already in progress")
+            return
+        thread.start()
+
+    def _finish_transfer(self, cancel: threading.Event, *sockets: socket.socket) -> None:
+        for sock in sockets:
+            try:
+                sock.close()
+            except OSError:
+                pass
+        with self._transfer_lock:
+            if self._transfer_cancel is cancel:
+                self._transfer_cancel = None
+                self._transfer_thread = None
+                self._transfer_sockets = set()
+
+    def _transfer_is_active(self) -> bool:
+        with self._transfer_lock:
+            return self._transfer_thread is not None
+
+    def _cancel_active_transfer(self) -> bool:
+        with self._transfer_lock:
+            cancel = self._transfer_cancel
+            sockets = tuple(self._transfer_sockets)
+        if cancel is None:
+            return False
+        cancel.set()
+        for sock in sockets:
+            try:
+                sock.close()
+            except OSError:
+                pass
+        return True
 
     def _read_client_udp_port(self, data_sock: socket.socket) -> int | None:
         """Read the client's UDP port number from the TCP data socket."""

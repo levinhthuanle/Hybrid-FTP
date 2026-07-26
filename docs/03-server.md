@@ -142,7 +142,7 @@ Virtual path `/` tương ứng với `server/storage/` trên filesystem thực.
 
 ---
 
-## 7. Transfer stubs (RETR/STOR/STOU/APPE)
+## 7. Historical transfer-stub design (superseded)
 
 Bốn lệnh transfer hiện tại là **stubs** — chúng validate path và mở data connection nhưng không truyền byte nào. Điểm hook cho RDT layer được đánh dấu rõ:
 
@@ -230,3 +230,14 @@ HASH somefile.txt
 # Đăng xuất
 QUIT
 ```
+
+
+---
+
+## Current implementation correction (2026-07-26)
+
+The earlier section titled `Transfer stubs (RETR/STOR/STOU/APPE)` is historical and fully superseded.
+
+RETR, STOR, STOU, and APPE invoke `UDPSender` or `UDPReceiver` through `server/session.py`; they are not stubs. The session sends 150 before the worker starts and sends 226 with `SHA-256=<digest>` only after reliable UDP completion. Both PASV and PORT data coordination paths are supported.
+
+ABOR is a real cancellation operation. It sets the active transfer cancellation event, closes the data/UDP sockets so waits unblock, sends 426, and leaves no partial upload at the final target path. New commands are rejected with 450 while a session transfer is in progress. `test_abor_cancels_waiting_upload_without_creating_target` verifies cancellation and subsequent NOOP recovery.

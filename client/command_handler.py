@@ -23,6 +23,8 @@ Available commands:
   rmd <name>              Remove empty directory
   put <local> [remote]    Upload file via reliable UDP
   get <remote> [local]    Download file via reliable UDP
+  put-active <local> [remote]  Upload through active-mode TCP setup
+  get-active <remote> [local]  Download through active-mode TCP setup
   dele <name>             Delete remote file
   rename <old> <new>      Rename remote file
   size <name>             Show file size
@@ -113,7 +115,7 @@ class CLI:
                     return
                 self._client.rmd(args[0])
                 print(f"Directory '{args[0]}' removed.")
-            case "put" | "upload":
+            case "put" | "upload" | "put-active":
                 self._require_connection()
                 if not args:
                     print("Usage: put <local_file> [remote_name]")
@@ -122,10 +124,10 @@ class CLI:
                 if not local.is_absolute():
                     local = self._upload_root / local
                 remote = args[1] if len(args) > 1 else local.name
-                print(f"Uploading {local} → {remote} ...")
-                digest = self._client.upload(local, remote)
+                print(f"Uploading {local} -> {remote} ...")
+                digest = self._client.upload_active(local, remote) if cmd == "put-active" else self._client.upload(local, remote)
                 print(f"Upload complete. SHA-256: {digest}")
-            case "get" | "download":
+            case "get" | "download" | "get-active":
                 self._require_connection()
                 if not args:
                     print("Usage: get <remote_file> [local_name]")
@@ -133,8 +135,8 @@ class CLI:
                 remote = args[0]
                 local_name = args[1] if len(args) > 1 else remote
                 local = self._download_root / local_name
-                print(f"Downloading {remote} → {local} ...")
-                digest = self._client.download(remote, local)
+                print(f"Downloading {remote} -> {local} ...")
+                digest = self._client.download_active(remote, local) if cmd == "get-active" else self._client.download(remote, local)
                 print(f"Download complete. SHA-256: {digest}")
                 print(f"Saved to: {local}")
             case "dele" | "delete" | "rm":
@@ -150,7 +152,7 @@ class CLI:
                     print("Usage: rename <old> <new>")
                     return
                 self._client.rename(args[0], args[1])
-                print(f"Renamed '{args[0]}' → '{args[1]}'.")
+                print(f"Renamed '{args[0]}' -> '{args[1]}'.")
             case "size":
                 self._require_connection()
                 if not args:

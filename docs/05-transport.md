@@ -79,7 +79,24 @@ digest = receiver.receive_file(Path("output.txt"))
 
 ```bash
 python -m unittest discover -s test -v
-# 38 tests OK (common + server integration)
+# Historical run: 38 tests OK (common + server integration)
 ```
 
 Test RDT end-to-end được cover bởi integration test upload/download trong `test/test_transfer.py` (phase sau).
+
+
+---
+
+## Current verification correction (2026-07-26)
+
+The old `38 tests OK` count is superseded. The full suite has 67 passing tests.
+
+Focused reliability tests in `test/test_transport.py` now demonstrate:
+
+- retransmission after the first DATA datagram is dropped;
+- retransmission after the first DATA ACK is dropped;
+- duplicate DATA is acknowledged without duplicate file output;
+- an out-of-order DATA datagram is ignored until the expected sequence arrives; and
+- FIN is retransmitted after a dropped FIN datagram.
+
+`UDPSender` and `UDPReceiver` also accept an optional cancellation event. They check it in their transfer/wait loops and raise `TransferError` when ABOR cancels a live session. This is used by the server worker model described in `docs/03-server.md`.

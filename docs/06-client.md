@@ -113,3 +113,17 @@ Disconnected.
 ## Verify toàn vẹn
 
 Sau mỗi transfer, client so sánh digest trả về từ `UDPSender.send_file()` / `UDPReceiver.receive_file()` với digest trong reply 226. Khớp = file toàn vẹn end-to-end.
+
+
+---
+
+## Current implementation correction (2026-07-26)
+
+PASV is still the default for `upload()` and `download()`, but active-mode file transfer is implemented and tested.
+
+- `FTPClient.upload_active(local_path, remote_name)` opens a TCP listener, sends PORT, accepts the server coordination connection, and transfers payload through reliable UDP.
+- `FTPClient.download_active(remote_name, local_path)` performs the corresponding active download path.
+- The CLI exposes these workflows as `put-active <local> [remote]` and `get-active <remote> [local]`.
+- After every upload or download, the client requires `SHA-256=` in the 226 reply and compares it against the locally computed digest. A missing or mismatched digest raises `FTPError`.
+
+`test_active_mode_upload_and_download` verifies both active upload and active download with binary data.
