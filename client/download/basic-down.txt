@@ -1,0 +1,3 @@
+Hello Hybrid FTP!
+This is a test file for ASCII transfer.
+Line 3.
