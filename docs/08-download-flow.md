@@ -1,4 +1,4 @@
-# Luồng tải file (`get` / `RETR`)
+# Luồng tải file (`RETR`)
 
 Sơ đồ này mô tả luồng tải file mặc định của dự án: **passive mode**. TCP được dùng để điều khiển và phối hợp; dữ liệu file đi qua các custom Reliable-UDP packet.
 
@@ -10,7 +10,7 @@ sequenceDiagram
     participant SC as ServerSession
     participant FS as Server storage
 
-    CLI->>FC: get remote_name [local_name]
+    CLI->>FC: RETR <filename>
     FC->>SC: TCP control: SIZE remote_name (tùy chọn)
     SC-->>FC: TCP control: 213 <total_bytes> (hoặc lỗi)
 

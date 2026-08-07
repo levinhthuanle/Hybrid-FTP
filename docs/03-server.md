@@ -142,21 +142,9 @@ Virtual path `/` tương ứng với `server/storage/` trên filesystem thực.
 
 ---
 
-## 7. Historical transfer-stub design (superseded)
+## 7. Transfer implementation
 
-Bốn lệnh transfer hiện tại là **stubs** — chúng validate path và mở data connection nhưng không truyền byte nào. Điểm hook cho RDT layer được đánh dấu rõ:
-
-```python
-def _cmd_retr(self, cmd):
-    # ... validate path và data connection ...
-    self._send(150, "Opening data connection for <file>")
-    # --- RDT LAYER HOOK ---
-    data_sock.close()
-    self._send(226, "STUB: 0 bytes transferred")
-```
-
-Phase sau sẽ thay thế phần `# --- RDT LAYER HOOK ---` bằng UDP sender/receiver từ `transport/` module.
-
+`RETR`, `STOR`, `STOU`, and `APPE` are implemented through the reliable UDP layer. The server sends `150` with the temporary UDP endpoint and transfer ID, transfers the payload with `UDPSender` or `UDPReceiver`, then returns `226` with the SHA-256 digest after successful completion. `STOU` has no argument and generates a unique server-side filename.
 ---
 
 ## 8. Danh sách 27 lệnh đã hiện thực
@@ -167,7 +155,7 @@ Phase sau sẽ thay thế phần `# --- RDT LAYER HOOK ---` bằng UDP sender/re
 | Directory | PWD, CWD, CDUP, MKD, RMD, LIST, NLST, STAT | Hoàn chỉnh |
 | File metadata | SIZE, MDTM, HASH | Hoàn chỉnh |
 | Transfer setup | TYPE, MODE, PORT, PASV | Hoàn chỉnh |
-| Transfer | RETR, STOR, STOU, APPE | Stub (RDT phase 2) |
+| Transfer | RETR, STOR, STOU, APPE | Reliable UDP implemented |
 | File ops | DELE, RNFR, RNTO, ABOR, HELP | Hoàn chỉnh |
 
 ---

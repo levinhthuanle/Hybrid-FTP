@@ -43,35 +43,37 @@ python3 client/main.py
 Chuoi lenh nen demo trong buoi defense:
 
 ```text
-connect
-login admin 1234
-help
-noop
-pwd
-mkd defense-room
-cwd defense-room
-pwd
-put defense_demo/ascii_demo.txt ascii-demo.txt
-ls
-nlst
-size ascii-demo.txt
-mdtm ascii-demo.txt
-hash ascii-demo.txt
+CONNECT
+USER admin
+PASS 1234
+HELP
+NOOP
+PWD
+MKD defense-room
+CWD defense-room
+PWD
+STOR defense_demo/ascii_demo.txt
+LIST
+NLST
+SIZE ascii-demo.txt
+MDTM ascii-demo.txt
+HASH ascii-demo.txt
 stat ascii-demo.txt
-type A
-get ascii-demo.txt ascii-demo-copy.txt
-type I
-put ../../test_files/sample.jpg image-demo.jpg
-get image-demo.jpg image-demo-copy.jpg
-put-active ../../test_files/docker.png active-demo.png
-get-active active-demo.png active-demo-copy.png
-put defense_demo/rename_source.txt rename-source.txt
-rename rename-source.txt renamed-demo.txt
-dele renamed-demo.txt
-put defense_demo/append_base.txt append-demo.txt
-cdup
-ls
-quit
+TYPE A
+RETR ascii-demo.txt
+TYPE I
+# Place an image in client/upload/image-demo.jpg before this command.
+STOR image-demo.jpg
+RETR image-demo.jpg
+# Active-mode binary transfer: use FTPClient.upload_active() and FTPClient.download_active() in a short Python demo.
+STOR defense_demo/rename_source.txt
+RNFR rename-source.txt
+RNTO renamed-demo.txt
+DELE renamed-demo.txt
+STOR defense_demo/append_base.txt
+CDUP
+LIST
+QUIT
 ```
 
 Sau do dung helper script ben duoi de demo nhung lenh khong tien show trong REPL.
@@ -112,7 +114,7 @@ python3 defense_demo/raw_demo.py stat ascii-demo.txt --cwd /defense-room
 ### STOU
 
 ```bash
-python3 defense_demo/raw_demo.py stou client/upload/defense_demo/rename_source.txt --hint stou-demo.txt --cwd /defense-room
+python3 defense_demo/raw_demo.py stou client/upload/defense_demo/rename_source.txt --cwd /defense-room
 ```
 
 Script se in ra ten file moi vua duoc tao.
@@ -126,9 +128,9 @@ python3 defense_demo/raw_demo.py appe client/upload/defense_demo/append_tail.txt
 Sau do co the kiem tra bang:
 
 ```text
-cwd defense-room
-get append-demo.txt append-demo-final.txt
-hash append-demo.txt
+CWD defense-room
+RETR append-demo.txt
+HASH append-demo.txt
 ```
 
 ### ABOR
@@ -144,16 +146,16 @@ Script se mo `STOR`, gui `ABOR`, roi kiem tra rang file dich khong duoc tao.
 Sau khi demo xong trong `defense-room`, xoa cac file vua tao roi moi `RMD`:
 
 ```text
-cwd defense-room
-dele ascii-demo.txt
-dele image-demo.jpg
-dele active-demo.png
-dele append-demo.txt
-dele multi-packet.txt
-dele stou-demo.txt
-dele stou-demo.1.txt
-cdup
-rmd defense-room
+CWD defense-room
+DELE ascii-demo.txt
+DELE image-demo.jpg
+DELE active-demo.png
+DELE append-demo.txt
+DELE multi-packet.txt
+DELE file
+DELE file.1
+CDUP
+RMD defense-room
 ```
 
 Neu `STOU` tao ten khac, xem lai bang `nlst` roi xoa dung ten do.
@@ -170,19 +172,19 @@ Neu `STOU` tao ten khac, xem lai bang `nlst` roi xoa dung ten do.
 | `TYPE A` | CLI truoc text transfer | `ascii_demo.txt` |
 | `TYPE I` | CLI truoc binary transfer | `sample.jpg`, `docker.png` |
 | `MODE` | `raw_demo.py mode S` | khong can file |
-| `PASV` | An ben trong `put` / `get` | bat ky file upload/download |
-| `PORT` | An ben trong `put-active` / `get-active` | `docker.png` |
+| `PASV` | Automatically used by `STOR` / `RETR` | bat ky file upload/download |
+| `PORT` | `FTPClient.upload_active()` / `download_active()` | `docker.png` |
 | `STOR`, `RETR` | CLI | `ascii_demo.txt`, `sample.jpg` |
 | `STOU` | `raw_demo.py stou` | `rename_source.txt` |
 | `APPE` | `raw_demo.py appe` | `append_base.txt`, `append_tail.txt` |
 | `DELE` | CLI | `renamed-demo.txt` |
-| `RNFR`, `RNTO` | CLI `rename` | `rename_source.txt` |
+| `RNFR`, `RNTO` | CLI as two commands | `rename_source.txt` |
 | `ABOR` | `raw_demo.py abor` | khong can local file |
 | `HELP` | CLI `help` hoac `raw_demo.py help` | khong can file |
 
 ## 6. Ghi chu de defense
 
-- `PASV` va `PORT` da duoc client goi tu dong. Trong CLI, `put/get` = passive mode, `put-active/get-active` = active mode.
-- `MODE`, `STOU`, `APPE`, `ABOR` da co trong server nhung khong co lenh REPL rieng, nen dung `raw_demo.py`.
-- Khi can chung minh binary khong bi hong, uu tien `put-active ../../test_files/docker.png active-demo.png` roi `hash active-demo.png` va `get-active` lai.
-- Khi can chung minh reliable UDP nhieu packet, dung `put defense_demo/multi_packet.txt multi-packet.txt`.
+- `STOR` va `RETR` dung passive mode trong CLI. Active mode duoc demo qua `FTPClient.upload_active()` va `download_active()`.
+- CLI hien tai hien thi cac verb FTP chuan; `raw_demo.py` van huu ich de lap lai cac tinh huong STOU, APPE, ABOR va active mode.
+- Khi can chung minh binary khong bi hong, dung `FTPClient.upload_active()` / `download_active()` va `HASH` de so sanh digest.
+- Khi can chung minh reliable UDP nhieu packet, dung `STOR defense_demo/multi_packet.txt` sau khi tao remote folder phu hop.

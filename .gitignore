@@ -4,4 +4,4 @@ __pycache__/
 *.pyo
 *.pdf
 notes.txt
-./server/storage
+server/storage/

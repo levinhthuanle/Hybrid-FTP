@@ -49,22 +49,25 @@ Gõ `help` trong REPL để xem danh sách lệnh.
 ftp> connect
 Connected to 127.0.0.1:2121
 
-ftp> login admin 1234
-Logged in.
+ftp> USER admin
+Username accepted; send PASS <password>.
 
-ftp> put test_files/sample.txt sample.txt
+ftp> PASS 1234
+Login successful.
+
+ftp> STOR sample.txt
 Uploading ... Upload complete. SHA-256: <digest>
 
-ftp> ls
+ftp> LIST
 -rw-r--r--  ...  sample.txt
 
-ftp> get sample.txt
+ftp> RETR sample.txt
 Downloading ... Download complete. SHA-256: <digest>
 
-ftp> hash sample.txt
+ftp> HASH sample.txt
 <digest>
 
-ftp> quit
+ftp> QUIT
 ```
 
 ---

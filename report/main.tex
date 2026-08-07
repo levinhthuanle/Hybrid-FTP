@@ -432,17 +432,19 @@ The following transcript was captured from a local server at \code{127.0.0.1:212
 \begin{lstlisting}
 ftp> connect
 Connected to 127.0.0.1:2121 - Hybrid FTP Server ready
-ftp> login admin 1234
-Logged in.
-ftp> put sample.txt demo-sample.txt
+ftp> USER admin
+Username accepted; send PASS <password>.
+ftp> PASS 1234
+Login successful.
+ftp> STOR demo-sample.txt
 Upload complete. SHA-256: f84e951432fc2c1b6da5f28397ed07d6c362098a4a7b92848eafbda1770a8b76
-ftp> hash demo-sample.txt
+ftp> HASH demo-sample.txt
 f84e951432fc2c1b6da5f28397ed07d6c362098a4a7b92848eafbda1770a8b76
-ftp> get demo-sample.txt demo-sample.txt
+ftp> RETR demo-sample.txt
 Download complete. SHA-256: f84e951432fc2c1b6da5f28397ed07d6c362098a4a7b92848eafbda1770a8b76
-ftp> dele demo-sample.txt
+ftp> DELE demo-sample.txt
 Deleted 'demo-sample.txt'.
-ftp> quit
+ftp> QUIT
 Disconnected.
 \end{lstlisting}
 
@@ -453,7 +455,7 @@ The following uncropped terminal captures provide direct runtime evidence for th
 \begin{figure}[H]
   \centering
   \includegraphics[width=\textwidth,height=0.76\textheight,keepaspectratio]{figures/BasicUpload.png}
-  \caption{Basic passive-mode upload. The client trace shows TCP connection and login, PASV coordination, STOR, the 150 readiness reply, the 226 completion reply, and the resulting SHA-256 digest.}
+  \caption{Basic passive-mode upload. The client trace shows TCP connection and USER/PASS authentication, PASV coordination, STOR, the 150 readiness reply, the 226 completion reply, and the resulting SHA-256 digest.}
   \label{fig:basic-upload}
 \end{figure}
 

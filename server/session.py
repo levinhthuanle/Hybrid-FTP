@@ -10,7 +10,7 @@ from typing import Callable
 
 from common.config import ServerConfig
 from common.constants import CONTROL_LINE_ENDING, ENCODING, MAX_CONTROL_LINE
-from common.protocol import Command, ReplyCode, format_reply, parse_command
+from common.protocol import FTP_COMMAND_SYNTAX, Command, ReplyCode, format_reply, parse_command
 from transport.udp_sender import UDPSender, TransferError as SenderError
 from transport.udp_receiver import UDPReceiver, TransferError as ReceiverError
 
@@ -193,6 +193,16 @@ class ClientSession:
         handler(cmd)
         return cmd.name != "QUIT"
 
+    def _syntax_error(self, command: str) -> None:
+        self._send(ReplyCode.PARAMETER_ERROR, f"Syntax: {FTP_COMMAND_SYNTAX[command]}")
+
+    def _require_no_argument(self, cmd: Command) -> bool:
+        """Reject arguments for FTP verbs whose grammar has none."""
+        if cmd.argument is None:
+            return False
+        self._syntax_error(cmd.name)
+        return True
+
     # ------------------------------------------------------------------
     # Auth commands
     # ------------------------------------------------------------------
@@ -225,9 +235,13 @@ class ClientSession:
             self._send(ReplyCode.NOT_LOGGED_IN, "Login incorrect")
 
     def _cmd_quit(self, cmd: Command) -> None:
+        if self._require_no_argument(cmd):
+            return
         self._send(ReplyCode.GOODBYE, "Goodbye")
 
     def _cmd_noop(self, cmd: Command) -> None:
+        if self._require_no_argument(cmd):
+            return
         self._send(ReplyCode.COMMAND_OK, "OK")
 
     # ------------------------------------------------------------------
@@ -235,6 +249,8 @@ class ClientSession:
     # ------------------------------------------------------------------
 
     def _cmd_pwd(self, cmd: Command) -> None:
+        if self._require_no_argument(cmd):
+            return
         self._send(257, f'"{self._fm.to_virtual(self._real_cwd())}" is current directory')
 
     def _cmd_cwd(self, cmd: Command) -> None:
@@ -250,6 +266,8 @@ class ClientSession:
         self._send(ReplyCode.FILE_ACTION_OK, f'Directory changed to "{self._fm.to_virtual(new_real)}"')
 
     def _cmd_cdup(self, cmd: Command) -> None:
+        if self._require_no_argument(cmd):
+            return
         parent = str(self._cwd.parent) if str(self._cwd) != "/" else "/"
         self._cmd_cwd(Command("CDUP", parent))
 
@@ -397,10 +415,12 @@ class ClientSession:
             return
         try:
             parts = [int(x) for x in cmd.argument.split(",")]
-            if len(parts) != 6:
+            if len(parts) != 6 or any(not 0 <= part <= 255 for part in parts):
                 raise ValueError
             host = ".".join(str(p) for p in parts[:4])
             port = parts[4] * 256 + parts[5]
+            if port == 0:
+                raise ValueError
         except (ValueError, IndexError):
             self._send(ReplyCode.PARAMETER_ERROR, "Invalid PORT argument")
             return
@@ -411,6 +431,8 @@ class ClientSession:
         self._send(ReplyCode.COMMAND_OK, f"PORT command successful ({host}:{port})")
 
     def _cmd_pasv(self, cmd: Command) -> None:
+        if self._require_no_argument(cmd):
+            return
         self._close_pasv_listener()
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -433,7 +455,7 @@ class ClientSession:
         return self._config.host
 
     # ------------------------------------------------------------------
-    # Transfer commands (stubs — RDT layer fills these in Phase 2)
+    # Transfer commands
     # ------------------------------------------------------------------
 
     def _cmd_retr(self, cmd: Command) -> None:
@@ -480,9 +502,10 @@ class ClientSession:
         self._do_receive(path)
 
     def _cmd_stou(self, cmd: Command) -> None:
+        if self._require_no_argument(cmd):
+            return
         real_cwd = self._real_cwd()
-        basename = cmd.argument or "file"
-        path = self._fm.unique_path(real_cwd, basename)
+        path = self._fm.unique_path(real_cwd, "file")
         self._do_receive(path)
 
     def _cmd_appe(self, cmd: Command) -> None:
@@ -544,14 +567,31 @@ class ClientSession:
         self._send(ReplyCode.FILE_ACTION_OK, "Rename successful")
 
     def _cmd_abor(self, cmd: Command) -> None:
+        if self._require_no_argument(cmd):
+            return
         if self._cancel_active_transfer():
             self._send(ReplyCode.TRANSFER_ABORTED, "Transfer aborted")
         else:
             self._send(ReplyCode.TRANSFER_COMPLETE, "No transfer in progress")
 
     def _cmd_help(self, cmd: Command) -> None:
+        if cmd.argument:
+            command = cmd.argument.upper()
+            if " " in command:
+                self._syntax_error("HELP")
+                return
+            syntax = FTP_COMMAND_SYNTAX.get(command)
+            if syntax is None:
+                self._send(ReplyCode.COMMAND_NOT_IMPLEMENTED, f"No help for {command}")
+                return
+            self._send(214, syntax)
+            return
         commands = sorted(self._handlers.keys())
-        self._send_multiline(214, ["Available commands:"] + [" ".join(commands[i:i+8]) for i in range(0, len(commands), 8)])
+        self._send_multiline(
+            214,
+            ["Available commands (use HELP <command> for syntax):"]
+            + [" ".join(commands[i:i+8]) for i in range(0, len(commands), 8)],
+        )
 
     # ------------------------------------------------------------------
     # Data connection helpers

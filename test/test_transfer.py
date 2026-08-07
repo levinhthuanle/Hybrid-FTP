@@ -217,9 +217,9 @@ class RoundTripTests(TransferTestBase):
 
 class StouTests(TransferTestBase):
 
-    def _stou(self, content: bytes, hint: str) -> None:
+    def _stou(self, content: bytes) -> None:
         data_sock = self._client._open_pasv_data()
-        code, msg = self._client._cmd(f"STOU {hint}")
+        code, msg = self._client._cmd("STOU")
         if code != 150:
             data_sock.close()
             raise FTPError(code, msg)
@@ -241,13 +241,13 @@ class StouTests(TransferTestBase):
         self.assertEqual(code, 226)
 
     def test_stou_creates_file(self) -> None:
-        self._stou(b"unique content", "stou.txt")
+        self._stou(b"unique content")
         names = [p.name for p in Path(self._storage.name).iterdir()]
-        self.assertTrue(any("stou" in n for n in names))
+        self.assertEqual(names, ["file"])
 
     def test_stou_no_overwrite(self) -> None:
-        self._stou(b"first", "dup.txt")
-        self._stou(b"second", "dup.txt")
+        self._stou(b"first")
+        self._stou(b"second")
         files = list(Path(self._storage.name).iterdir())
         self.assertEqual(len(files), 2)
 

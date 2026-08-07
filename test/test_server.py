@@ -196,6 +196,7 @@ class DirectoryTests(ServerTestBase):
         c = self.connect()
         self.login(c)
         self.assertEqual(c.code("XFOO bar"), 502)
+        self.assertEqual(c.code("PUT file.txt"), 502)
         c.close()
 
 
@@ -266,6 +267,15 @@ class TransferSetupTests(ServerTestBase):
         c = self.connect()
         self.login(c)
         self.assertEqual(c.code("PORT bad"), 501)
+        self.assertEqual(c.code("PORT 127,0,0,1,256,1"), 501)
+        self.assertEqual(c.code("PORT 127,0,0,1,0,0"), 501)
+        c.close()
+
+    def test_no_argument_commands_reject_trailing_text(self) -> None:
+        c = self.connect()
+        self.login(c)
+        for line in ("NOOP extra", "PWD extra", "CDUP extra", "PASV extra", "ABOR extra", "STOU hint"):
+            self.assertEqual(c.code(line), 501, line)
         c.close()
 
 
@@ -399,8 +409,14 @@ class FileOpsTests(ServerTestBase):
     def test_help(self) -> None:
         c = self.connect()
         self.login(c)
-        reply = c.cmd("HELP")
-        self.assertTrue(reply.startswith("214"), reply)
+        c.send("HELP")
+        while True:
+            reply = c.readline()
+            if reply.startswith("214 "):
+                break
+        self.assertTrue(reply.startswith("214 "), reply)
+        reply = c.cmd("HELP STOR")
+        self.assertEqual(reply, "214 STOR <filename>")
         c.close()
 
 

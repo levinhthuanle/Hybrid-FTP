@@ -38,7 +38,6 @@ def build_parser() -> argparse.ArgumentParser:
 
     stou = subparsers.add_parser("stou", help="Upload with STOU")
     stou.add_argument("local", help="Local file path")
-    stou.add_argument("--hint", default="stou-demo.txt", help="Requested base filename")
     stou.add_argument("--cwd", default="", help="Remote cwd before transfer")
 
     appe = subparsers.add_parser("appe", help="Append to a remote file")
@@ -109,7 +108,7 @@ def run_stou(args: argparse.Namespace) -> int:
         data_sock = client._open_pasv_data()
         udp_sock: socket.socket | None = None
         try:
-            code, message = client._cmd(f"STOU {args.hint}")
+            code, message = client._cmd("STOU")
             if code != 150:
                 raise FTPError(code, message)
             udp_port, tid = client._parse_udp_params(message)

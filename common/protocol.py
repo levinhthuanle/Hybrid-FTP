@@ -7,6 +7,38 @@ from enum import IntEnum
 
 from .constants import CONTROL_LINE_ENDING, ENCODING, MAX_CONTROL_LINE
 
+# Approved FTP command syntax, shared by server HELP and the client CLI.
+# Values are wire-level forms from the assignment specification.
+FTP_COMMAND_SYNTAX: dict[str, str] = {
+    "USER": "USER <username>",
+    "PASS": "PASS <password>",
+    "QUIT": "QUIT",
+    "NOOP": "NOOP",
+    "PWD": "PWD",
+    "CWD": "CWD <path>",
+    "CDUP": "CDUP",
+    "MKD": "MKD <dirname>",
+    "RMD": "RMD <dirname>",
+    "LIST": "LIST [path]",
+    "NLST": "NLST [path]",
+    "STAT": "STAT [path]",
+    "SIZE": "SIZE <filename>",
+    "MDTM": "MDTM <filename>",
+    "TYPE": "TYPE {A | I}",
+    "MODE": "MODE {S | B | C}",
+    "PORT": "PORT <h1,h2,h3,h4,p1,p2>",
+    "PASV": "PASV",
+    "RETR": "RETR <filename>",
+    "STOR": "STOR <filename>",
+    "STOU": "STOU",
+    "APPE": "APPE <filename>",
+    "DELE": "DELE <filename>",
+    "RNFR": "RNFR <oldname>",
+    "RNTO": "RNTO <newname>",
+    "HASH": "HASH <filename>",
+    "ABOR": "ABOR",
+    "HELP": "HELP [command]",
+}
 
 class ReplyCode(IntEnum):
     SERVICE_READY = 220

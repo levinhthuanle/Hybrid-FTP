@@ -90,13 +90,22 @@ class FTPClient:
     # Auth
     # ------------------------------------------------------------------
 
-    def login(self, username: str, password: str) -> None:
+    def user(self, username: str) -> None:
+        """Send USER <username> and require the 331 intermediate reply."""
         code, msg = self._cmd(f"USER {username}")
         if code != 331:
             raise FTPError(code, msg)
+
+    def pass_(self, password: str) -> None:
+        """Send PASS <password> and require the 230 completion reply."""
         code, msg = self._cmd(f"PASS {password}")
         if code != 230:
             raise FTPError(code, msg)
+
+    def login(self, username: str, password: str) -> None:
+        """Convenience API that sends USER followed by PASS."""
+        self.user(username)
+        self.pass_(password)
 
     # ------------------------------------------------------------------
     # Directory navigation
@@ -177,8 +186,26 @@ class FTPClient:
         if code != 200:
             raise FTPError(code, msg)
 
+    def set_mode(self, mode_code: str) -> None:
+        code, msg = self._cmd(f"MODE {mode_code.upper()}")
+        if code != 200:
+            raise FTPError(code, msg)
+
+    def port(self, endpoint: str) -> None:
+        code, msg = self._cmd(f"PORT {endpoint}")
+        if code != 200:
+            raise FTPError(code, msg)
+
+    def pasv(self) -> str:
+        code, msg = self._cmd("PASV")
+        if code != 227:
+            raise FTPError(code, msg)
+        return msg
+
     def noop(self) -> None:
-        self._cmd("NOOP")
+        code, msg = self._cmd("NOOP")
+        if code != 200:
+            raise FTPError(code, msg)
 
     # ------------------------------------------------------------------
     # File operations
@@ -189,16 +216,32 @@ class FTPClient:
         if code != 250:
             raise FTPError(code, msg)
 
-    def rename(self, old: str, new: str) -> None:
+    def rnfr(self, old: str) -> None:
         code, msg = self._cmd(f"RNFR {old}")
         if code != 350:
             raise FTPError(code, msg)
+
+    def rnto(self, new: str) -> None:
         code, msg = self._cmd(f"RNTO {new}")
         if code != 250:
             raise FTPError(code, msg)
 
-    def help(self) -> str:
-        _, msg = self._cmd("HELP")
+    def rename(self, old: str, new: str) -> None:
+        """Convenience API that sends RNFR followed by RNTO."""
+        self.rnfr(old)
+        self.rnto(new)
+
+    def abor(self) -> str:
+        code, msg = self._cmd("ABOR")
+        if code not in (226, 426):
+            raise FTPError(code, msg)
+        return msg
+
+    def help(self, command: str | None = None) -> str:
+        command_line = f"HELP {command}" if command else "HELP"
+        code, msg = self._cmd(command_line)
+        if code != 214:
+            raise FTPError(code, msg)
         return msg
 
     # ------------------------------------------------------------------
@@ -206,14 +249,30 @@ class FTPClient:
     # ------------------------------------------------------------------
 
     def upload(self, local_path: Path, remote_name: str) -> str:
-        """Upload *local_path* to the server as *remote_name*.
+        """Backward-compatible API for STOR <remote_name>."""
+        return self.stor(local_path, remote_name)
 
-        Returns the SHA-256 digest confirmed by the server.
-        """
+    def stor(self, local_path: Path, remote_name: str) -> str:
+        """Upload *local_path* by sending STOR <remote_name>."""
+        return self._upload_file(local_path, f"STOR {remote_name}")
+
+    def stou(self, local_path: Path) -> str:
+        """Upload *local_path* by sending the argument-free STOU command."""
+        return self._upload_file(local_path, "STOU")
+
+    def appe(self, local_path: Path, remote_name: str) -> str:
+        """Append *local_path* by sending APPE <remote_name>."""
+        return self._upload_file(local_path, f"APPE {remote_name}")
+
+    def _upload_file(self, local_path: Path, command_line: str) -> str:
+        """Send one FTP upload control command and stream its UDP payload."""
         from transport.udp_sender import UDPSender, TransferError
 
+        if not local_path.is_file():
+            raise FTPError(0, f"Local file unavailable: {local_path}")
+
         data_sock = self._open_pasv_data()
-        code, msg = self._cmd(f"STOR {remote_name}")
+        code, msg = self._cmd(command_line)
         if code != 150:
             data_sock.close()
             raise FTPError(code, msg)
@@ -238,7 +297,6 @@ class FTPClient:
         if code != 226:
             raise FTPError(code, msg)
         return self._verify_transfer_digest(digest, msg)
-
     def download(self, remote_name: str, local_path: Path) -> str:
         """Download *remote_name* from the server to *local_path*.
 

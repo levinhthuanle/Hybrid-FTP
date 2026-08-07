@@ -32,27 +32,30 @@ Sau khi khởi động, gõ `help` để xem danh sách lệnh.
 ftp> connect
 Connected to 127.0.0.1:2121 — Hybrid FTP Server ready
 
-ftp> login admin 1234
-Logged in.
+ftp> USER admin
+Username accepted; send PASS <password>.
 
-ftp> ls
+ftp> PASS 1234
+Login successful.
+
+ftp> LIST
 (empty)
 
-ftp> put sample.txt
+ftp> STOR sample.txt
 Uploading client/upload/sample.txt → sample.txt ...
 Upload complete. SHA-256: 3b9e...
 
-ftp> ls
+ftp> LIST
 -rw-r--r--   1 owner group           72 Jul 23 16:51 sample.txt
 
-ftp> hash sample.txt
+ftp> HASH sample.txt
 3b9e...
 
-ftp> get sample.txt downloaded.txt
+ftp> RETR sample.txt
 Downloading sample.txt → client/download/downloaded.txt ...
 Download complete. SHA-256: 3b9e...
 
-ftp> quit
+ftp> QUIT
 Disconnected.
 ```
 
@@ -117,13 +120,18 @@ Sau mỗi transfer, client so sánh digest trả về từ `UDPSender.send_file(
 
 ---
 
+## Official command surface update (2026-08-07)
+
+The REPL now accepts the assignment's FTP verbs directly: `USER`, `PASS`, `QUIT`, `NOOP`, `PWD`, `CWD`, `CDUP`, `MKD`, `RMD`, `LIST`, `NLST`, `STAT`, `SIZE`, `MDTM`, `TYPE`, `MODE`, `PORT`, `PASV`, `RETR`, `STOR`, `STOU`, `APPE`, `DELE`, `RNFR`, `RNTO`, `HASH`, `ABOR`, and `HELP`.
+
+`STOR <filename>` reads `client/upload/<filename>` and `RETR <filename>` writes to `client/download/<filename>`. For `STOU` and `APPE`, the REPL accepts a local-source selector only to locate the payload; it sends the server the exact wire commands `STOU` and `APPE <filename>`.
 ## Current implementation correction (2026-07-26)
 
 PASV is still the default for `upload()` and `download()`, but active-mode file transfer is implemented and tested.
 
 - `FTPClient.upload_active(local_path, remote_name)` opens a TCP listener, sends PORT, accepts the server coordination connection, and transfers payload through reliable UDP.
 - `FTPClient.download_active(remote_name, local_path)` performs the corresponding active download path.
-- The CLI exposes these workflows as `put-active <local> [remote]` and `get-active <remote> [local]`.
+- Active-mode transfers remain available through `FTPClient.upload_active()` and `FTPClient.download_active()`; the interactive CLI shows only the approved FTP verbs.
 - After every upload or download, the client requires `SHA-256=` in the 226 reply and compares it against the locally computed digest. A missing or mismatched digest raises `FTPError`.
 
 `test_active_mode_upload_and_download` verifies both active upload and active download with binary data.

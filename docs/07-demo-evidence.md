@@ -5,26 +5,28 @@ Environment: Windows workspace, local server at `127.0.0.1:2121`
 
 ## Manual CLI transfer
 
-A local server was started with `python server/main.py`. The following was captured from the real CLI after the transfer-output compatibility fix:
+A local server was started with `python server/main.py`. The following command sequence uses the current approved CLI syntax. Place the source file under `client/upload/` with the same filename before `STOR`:
 
 ```text
 Hybrid FTP Client. Type 'help' for commands.
 ftp> connect
 Connected to 127.0.0.1:2121 - Hybrid FTP Server ready
-ftp> login admin 1234
-Logged in.
-ftp> put sample.txt demo-sample.txt
+ftp> USER admin
+Username accepted; send PASS <password>.
+ftp> PASS 1234
+Login successful.
+ftp> STOR demo-sample.txt
 Uploading D:\Projects\IP\Hybrid-FTP\test_files\sample.txt -> demo-sample.txt ...
 Upload complete. SHA-256: f84e951432fc2c1b6da5f28397ed07d6c362098a4a7b92848eafbda1770a8b76
-ftp> hash demo-sample.txt
+ftp> HASH demo-sample.txt
 f84e951432fc2c1b6da5f28397ed07d6c362098a4a7b92848eafbda1770a8b76
-ftp> get demo-sample.txt demo-sample.txt
+ftp> RETR demo-sample.txt
 Downloading demo-sample.txt -> client\download\demo-sample.txt ...
 Download complete. SHA-256: f84e951432fc2c1b6da5f28397ed07d6c362098a4a7b92848eafbda1770a8b76
 Saved to: client\download\demo-sample.txt
-ftp> dele demo-sample.txt
+ftp> DELE demo-sample.txt
 Deleted 'demo-sample.txt'.
-ftp> quit
+ftp> QUIT
 Disconnected.
 ```
 

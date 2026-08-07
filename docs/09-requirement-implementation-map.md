@@ -227,9 +227,9 @@ Active-mode upload and download are tested in `test/test_transfer.py:298-307`.
 - Entry point: `client/main.py:1-11`
 - REPL command dispatcher: `client/command_handler.py:48-213`
 - Important defense points:
-  - `connect` creates `FTPClient(trace_control=True)` so the professor can see the raw TCP conversation.
-  - `put` / `get` use passive mode helpers by default.
-  - `put-active` / `get-active` explicitly demonstrate active mode.
+  - `CONNECT` creates `FTPClient(trace_control=True)` so the professor can see the raw TCP conversation.
+  - `STOR` / `RETR` use passive-mode helpers by default.
+  - `FTPClient.upload_active()` / `download_active()` explicitly demonstrate active mode without adding non-standard CLI verbs.
   - Uploaded local files are resolved under `client/upload/`; downloaded files are stored under `client/download/`.
 
 ### 9.2 Raw defense helper

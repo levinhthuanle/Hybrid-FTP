@@ -832,8 +832,8 @@ All five technical tasks listed under the earlier `Current Remaining Tasks` head
 | Former task | Completion evidence |
 | --- | --- |
 | Dropped-DATA / out-of-order / FIN-loss transport coverage | Added focused tests for dropped DATA, dropped ACK, duplicate DATA, out-of-order DATA, and dropped FIN. |
-| Manual CLI demonstration | A successful connect, login, put, hash, get, delete, and quit transcript with matching SHA-256 values is in `docs/07-demo-evidence.md`. |
-| Active-mode file transfers | Implemented in `FTPClient.upload_active()` / `download_active()` and exposed as `put-active` / `get-active`; binary upload/download is covered by an integration test. |
+| Manual CLI demonstration | A successful `CONNECT`, `USER`/`PASS`, `STOR`, `HASH`, `RETR`, `DELE`, and `QUIT` transcript with matching SHA-256 values is in `docs/07-demo-evidence.md`. |
+| Active-mode file transfers | Implemented in `FTPClient.upload_active()` / `download_active()`; binary upload/download is covered by an integration test. The interactive CLI now uses only approved FTP verbs. |
 | Real ABOR cancellation | The server cancels a live worker, closes transfer sockets, returns 426, and protects uploads with temporary files; covered by an integration test. |
 | Stale module documents | Each file in `docs/` now has a dated correction; `docs/07-demo-evidence.md` contains the current cross-document evidence. |
 

@@ -1,7 +1,8 @@
-"""Interactive CLI command handler for the Hybrid FTP client."""
+"""Interactive CLI that sends the approved FTP control-command syntax."""
 
 from __future__ import annotations
 
+import shlex
 import sys
 from pathlib import Path
 
@@ -10,30 +11,41 @@ from .ftp_client import FTPClient, FTPError
 
 
 HELP_TEXT = """\
-Available commands:
-  connect [host [port]]   Connect to server (default: 127.0.0.1:2121)
-  login <user> <pass>     Authenticate
-  logout / quit           Disconnect and exit
-  pwd                     Print working directory
-  cwd <path>              Change remote directory
-  cdup                    Go to parent directory
-  ls [path]               List directory (long format)
-  nlst [path]             List filenames only
-  mkd <name>              Create directory
-  rmd <name>              Remove empty directory
-  put <local> [remote]    Upload file via reliable UDP
-  get <remote> [local]    Download file via reliable UDP
-  put-active <local> [remote]  Upload through active-mode TCP setup
-  get-active <remote> [local]  Download through active-mode TCP setup
-  dele <name>             Delete remote file
-  rename <old> <new>      Rename remote file
-  size <name>             Show file size
-  mdtm <name>             Show last modification time
-  hash <name>             Show SHA-256 hash of remote file
-  stat [path]             Show server/file status
-  type <A|I>              Set transfer type (ASCII / Binary)
-  noop                    Send keep-alive
-  help                    Show this help
+Connection:
+  CONNECT [host [port]]          Connect to the server (default: 127.0.0.1:2121)
+
+FTP control commands:
+  USER <username>                Begin authentication
+  PASS <password>                Complete authentication
+  QUIT                            End the session
+  NOOP                            Keep-alive ping
+  PWD                             Print the remote working directory
+  CWD <path>                     Change remote directory
+  CDUP                            Move to the parent directory
+  MKD <dirname>                  Create a directory
+  RMD <dirname>                  Remove an empty directory
+  LIST [path]                    Detailed directory listing
+  NLST [path]                    Filename-only listing
+  STAT [path]                    Server or file status
+  SIZE <filename>                File size
+  MDTM <filename>                Last modification time
+  TYPE {A | I}                   ASCII or binary transfer type
+  MODE {S | B | C}               Transfer mode (the server supports S)
+  PORT <h1,h2,h3,h4,p1,p2>       Configure active mode
+  PASV                            Configure passive mode
+  RETR <filename>                Download to client/download/<filename>
+  STOR <filename>                Upload client/upload/<filename>
+  STOU <local-file>              CLI source selector; sends FTP STOU
+  APPE <local-file> <filename>   CLI source selector; sends FTP APPE <filename>
+  DELE <filename>                Delete a remote file
+  RNFR <oldname>                 Begin a rename operation
+  RNTO <newname>                 Complete the pending rename operation
+  HASH <filename>                Return the remote SHA-256 digest
+  ABOR                            Abort the active transfer
+  HELP [command]                 Show command help
+
+The arguments marked as "CLI source selector" identify a local file only;
+the control command sent to the server still has the exact FTP syntax above.
 """
 
 
@@ -46,7 +58,7 @@ class CLI:
         self._download_root.mkdir(parents=True, exist_ok=True)
 
     def run(self) -> None:
-        print("Hybrid FTP Client. Type 'help' for commands.")
+        print("Hybrid FTP Client. Type 'HELP' for commands.")
         while True:
             try:
                 line = input("ftp> ").strip()
@@ -56,8 +68,14 @@ class CLI:
                 break
             if not line:
                 continue
-            parts = line.split()
-            cmd, args = parts[0].lower(), parts[1:]
+            try:
+                parts = shlex.split(line)
+            except ValueError as exc:
+                print(f"Syntax error: {exc}")
+                continue
+            if not parts:
+                continue
+            cmd, args = parts[0].upper(), parts[1:]
             try:
                 self._dispatch(cmd, args)
             except FTPError as exc:
@@ -67,141 +85,219 @@ class CLI:
 
     def _dispatch(self, cmd: str, args: list[str]) -> None:
         match cmd:
-            case "connect":
+            case "CONNECT":
                 self._do_connect(args)
-            case "login":
-                self._require_connection()
-                if len(args) < 2:
-                    print("Usage: login <user> <pass>")
+            case "USER":
+                if not self._require_exact_args(args, 1, "USER <username>"):
                     return
-                self._client.login(args[0], args[1])
-                print("Logged in.")
-            case "logout" | "quit" | "exit" | "bye":
+                self._require_connection()
+                self._client.user(args[0])
+                print("Username accepted; send PASS <password>.")
+            case "PASS":
+                if not self._require_exact_args(args, 1, "PASS <password>"):
+                    return
+                self._require_connection()
+                self._client.pass_(args[0])
+                print("Login successful.")
+            case "QUIT":
+                if not self._require_exact_args(args, 0, "QUIT"):
+                    return
                 self._safe_quit()
                 sys.exit(0)
-            case "pwd":
-                self._require_connection()
-                print(self._client.pwd())
-            case "cwd" | "cd":
-                self._require_connection()
-                if not args:
-                    print("Usage: cwd <path>")
+            case "NOOP":
+                if not self._require_exact_args(args, 0, "NOOP"):
                     return
-                self._client.cwd(args[0])
-                print(self._client.pwd())
-            case "cdup":
-                self._require_connection()
-                self._client.cdup()
-                print(self._client.pwd())
-            case "ls" | "list" | "dir":
-                self._require_connection()
-                lines = self._client.list(args[0] if args else "")
-                print("\n".join(lines) if lines else "(empty)")
-            case "nlst":
-                self._require_connection()
-                lines = self._client.nlst(args[0] if args else "")
-                print("\n".join(lines) if lines else "(empty)")
-            case "mkd" | "mkdir":
-                self._require_connection()
-                if not args:
-                    print("Usage: mkd <name>")
-                    return
-                self._client.mkd(args[0])
-                print(f"Directory '{args[0]}' created.")
-            case "rmd" | "rmdir":
-                self._require_connection()
-                if not args:
-                    print("Usage: rmd <name>")
-                    return
-                self._client.rmd(args[0])
-                print(f"Directory '{args[0]}' removed.")
-            case "put" | "upload" | "put-active":
-                self._require_connection()
-                if not args:
-                    print("Usage: put <local_file> [remote_name]")
-                    return
-                local = Path(args[0])
-                if not local.is_absolute():
-                    local = self._upload_root / local
-                remote = args[1] if len(args) > 1 else local.name
-                print(f"Uploading {local} -> {remote} ...")
-                digest = self._client.upload_active(local, remote) if cmd == "put-active" else self._client.upload(local, remote)
-                print(f"Upload complete. SHA-256: {digest}")
-            case "get" | "download" | "get-active":
-                self._require_connection()
-                if not args:
-                    print("Usage: get <remote_file> [local_name]")
-                    return
-                remote = args[0]
-                local_name = args[1] if len(args) > 1 else remote
-                local = self._download_root / local_name
-                print(f"Downloading {remote} -> {local} ...")
-                digest = self._client.download_active(remote, local) if cmd == "get-active" else self._client.download(remote, local)
-                print(f"Download complete. SHA-256: {digest}")
-                print(f"Saved to: {local}")
-            case "dele" | "delete" | "rm":
-                self._require_connection()
-                if not args:
-                    print("Usage: dele <name>")
-                    return
-                self._client.dele(args[0])
-                print(f"Deleted '{args[0]}'.")
-            case "rename" | "mv":
-                self._require_connection()
-                if len(args) < 2:
-                    print("Usage: rename <old> <new>")
-                    return
-                self._client.rename(args[0], args[1])
-                print(f"Renamed '{args[0]}' -> '{args[1]}'.")
-            case "size":
-                self._require_connection()
-                if not args:
-                    print("Usage: size <name>")
-                    return
-                print(f"{self._client.size(args[0])} bytes")
-            case "mdtm":
-                self._require_connection()
-                if not args:
-                    print("Usage: mdtm <name>")
-                    return
-                print(self._client.mdtm(args[0]))
-            case "hash":
-                self._require_connection()
-                if not args:
-                    print("Usage: hash <name>")
-                    return
-                print(self._client.hash(args[0]))
-            case "stat":
-                self._require_connection()
-                print(self._client.stat(args[0] if args else ""))
-            case "type":
-                self._require_connection()
-                if not args:
-                    print("Usage: type <A|I>")
-                    return
-                self._client.set_type(args[0])
-                print(f"Type set to {'ASCII' if args[0].upper() == 'A' else 'Binary'}.")
-            case "noop":
                 self._require_connection()
                 self._client.noop()
                 print("OK")
-            case "help" | "?":
-                print(HELP_TEXT)
+            case "PWD":
+                if not self._require_exact_args(args, 0, "PWD"):
+                    return
+                self._require_connection()
+                print(self._client.pwd())
+            case "CWD":
+                if not self._require_exact_args(args, 1, "CWD <path>"):
+                    return
+                self._require_connection()
+                self._client.cwd(args[0])
+                print(self._client.pwd())
+            case "CDUP":
+                if not self._require_exact_args(args, 0, "CDUP"):
+                    return
+                self._require_connection()
+                self._client.cdup()
+                print(self._client.pwd())
+            case "MKD":
+                if not self._require_exact_args(args, 1, "MKD <dirname>"):
+                    return
+                self._require_connection()
+                self._client.mkd(args[0])
+                print(f"Directory '{args[0]}' created.")
+            case "RMD":
+                if not self._require_exact_args(args, 1, "RMD <dirname>"):
+                    return
+                self._require_connection()
+                self._client.rmd(args[0])
+                print(f"Directory '{args[0]}' removed.")
+            case "LIST":
+                if not self._require_at_most_args(args, 1, "LIST [path]"):
+                    return
+                self._require_connection()
+                lines = self._client.list(args[0] if args else "")
+                print("\n".join(lines) if lines else "(empty)")
+            case "NLST":
+                if not self._require_at_most_args(args, 1, "NLST [path]"):
+                    return
+                self._require_connection()
+                lines = self._client.nlst(args[0] if args else "")
+                print("\n".join(lines) if lines else "(empty)")
+            case "STAT":
+                if not self._require_at_most_args(args, 1, "STAT [path]"):
+                    return
+                self._require_connection()
+                print(self._client.stat(args[0] if args else ""))
+            case "SIZE":
+                if not self._require_exact_args(args, 1, "SIZE <filename>"):
+                    return
+                self._require_connection()
+                print(f"{self._client.size(args[0])} bytes")
+            case "MDTM":
+                if not self._require_exact_args(args, 1, "MDTM <filename>"):
+                    return
+                self._require_connection()
+                print(self._client.mdtm(args[0]))
+            case "TYPE":
+                if not self._require_exact_args(args, 1, "TYPE {A | I}"):
+                    return
+                self._require_connection()
+                self._client.set_type(args[0])
+                print(f"Type set to {'ASCII' if args[0].upper() == 'A' else 'Binary'}.")
+            case "MODE":
+                if not self._require_exact_args(args, 1, "MODE {S | B | C}"):
+                    return
+                self._require_connection()
+                self._client.set_mode(args[0])
+                print(f"Mode set to {args[0].upper()}.")
+            case "PORT":
+                if not self._require_exact_args(args, 1, "PORT <h1,h2,h3,h4,p1,p2>"):
+                    return
+                self._require_connection()
+                self._client.port(args[0])
+                print("Active mode configured.")
+            case "PASV":
+                if not self._require_exact_args(args, 0, "PASV"):
+                    return
+                self._require_connection()
+                print(self._client.pasv())
+            case "STOR":
+                if not self._require_exact_args(args, 1, "STOR <filename>"):
+                    return
+                self._require_connection()
+                local = self._upload_file(args[0])
+                print(f"Uploading {local} -> {args[0]} ...")
+                digest = self._client.stor(local, args[0])
+                print(f"Upload complete. SHA-256: {digest}")
+            case "RETR":
+                if not self._require_exact_args(args, 1, "RETR <filename>"):
+                    return
+                self._require_connection()
+                local = self._download_file(args[0])
+                print(f"Downloading {args[0]} -> {local} ...")
+                digest = self._client.download(args[0], local)
+                print(f"Download complete. SHA-256: {digest}")
+                print(f"Saved to: {local}")
+            case "STOU":
+                if not self._require_exact_args(args, 1, "STOU <local-file>"):
+                    return
+                self._require_connection()
+                local = self._upload_file(args[0])
+                digest = self._client.stou(local)
+                print(f"Unique upload complete. SHA-256: {digest}")
+            case "APPE":
+                if not self._require_exact_args(args, 2, "APPE <local-file> <filename>"):
+                    return
+                self._require_connection()
+                local = self._upload_file(args[0])
+                digest = self._client.appe(local, args[1])
+                print(f"Append complete. SHA-256: {digest}")
+            case "DELE":
+                if not self._require_exact_args(args, 1, "DELE <filename>"):
+                    return
+                self._require_connection()
+                self._client.dele(args[0])
+                print(f"Deleted '{args[0]}'.")
+            case "RNFR":
+                if not self._require_exact_args(args, 1, "RNFR <oldname>"):
+                    return
+                self._require_connection()
+                self._client.rnfr(args[0])
+                print("Rename source accepted; send RNTO <newname>.")
+            case "RNTO":
+                if not self._require_exact_args(args, 1, "RNTO <newname>"):
+                    return
+                self._require_connection()
+                self._client.rnto(args[0])
+                print("Rename successful.")
+            case "HASH":
+                if not self._require_exact_args(args, 1, "HASH <filename>"):
+                    return
+                self._require_connection()
+                print(self._client.hash(args[0]))
+            case "ABOR":
+                if not self._require_exact_args(args, 0, "ABOR"):
+                    return
+                self._require_connection()
+                print(self._client.abor())
+            case "HELP":
+                if not self._require_at_most_args(args, 1, "HELP [command]"):
+                    return
+                if self._client is None:
+                    print(HELP_TEXT)
+                elif args:
+                    print(self._client.help(args[0]))
+                else:
+                    self._client.help()
+                    print(HELP_TEXT)
             case _:
-                print(f"Unknown command: {cmd!r}. Type 'help' for a list.")
+                print(f"Unknown command: {cmd!r}. Type 'HELP' for the approved FTP commands.")
 
     def _do_connect(self, args: list[str]) -> None:
+        if not self._require_at_most_args(args, 2, "CONNECT [host [port]]"):
+            return
         host = args[0] if args else "127.0.0.1"
         port = int(args[1]) if len(args) > 1 else 2121
         cfg = ClientConfig(host=host, control_port=port)
-        # Show the live TCP control exchange in every interactive CLI session.
         self._client = FTPClient(cfg, trace_control=True)
         greeting = self._client.connect()
         print(f"Connected to {host}:{port} — {greeting}")
 
+    @staticmethod
+    def _require_exact_args(args: list[str], count: int, syntax: str) -> bool:
+        if len(args) == count:
+            return True
+        print(f"Usage: {syntax}")
+        return False
+
+    @staticmethod
+    def _require_at_most_args(args: list[str], count: int, syntax: str) -> bool:
+        if len(args) <= count:
+            return True
+        print(f"Usage: {syntax}")
+        return False
+
+    def _upload_file(self, name: str) -> Path:
+        path = Path(name)
+        return path if path.is_absolute() else self._upload_root / path
+
+    def _download_file(self, remote_name: str) -> Path:
+        filename = Path(remote_name.replace("\\", "/")).name
+        if not filename:
+            raise FTPError(501, "RETR requires a filename")
+        return self._download_root / filename
+
     def _require_connection(self) -> None:
         if self._client is None:
-            raise FTPError(0, "Not connected. Use 'connect' first.")
+            raise FTPError(0, "Not connected. Use CONNECT first.")
 
     def _safe_quit(self) -> None:
         if self._client is not None:
