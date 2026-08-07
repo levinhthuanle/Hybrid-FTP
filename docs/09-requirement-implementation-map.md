@@ -28,8 +28,8 @@ It explains, requirement by requirement, where the feature is implemented, how t
   - Header fields: magic, version, flags, transfer ID, sequence number, acknowledgement number, payload length, checksum.
   - Header format is `!2sBBIIIHI`, total header size is 22 bytes.
 - Shared protocol constants are defined in `common/constants.py:6-24`.
-  - `MAX_UDP_PAYLOAD = 1024`
-  - `DEFAULT_UDP_WINDOW_SIZE = 1`
+  - `MAX_UDP_PAYLOAD = 1200`
+  - `DEFAULT_UDP_WINDOW_SIZE = 8`
   - `PacketFlag`: `DATA`, `ACK`, `FIN`, `FIN_ACK`, `ERROR`
 - Sender logic is implemented in `transport/udp_sender.py:52-186`.
 - Receiver logic is implemented in `transport/udp_receiver.py:51-147`.

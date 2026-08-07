@@ -100,3 +100,16 @@ Focused reliability tests in `test/test_transport.py` now demonstrate:
 - FIN is retransmitted after a dropped FIN datagram.
 
 `UDPSender` and `UDPReceiver` also accept an optional cancellation event. They check it in their transfer/wait loops and raise `TransferError` when ABOR cancels a live session. This is used by the server worker model described in `docs/03-server.md`.
+
+## Current throughput tuning correction (2026-08-07)
+
+The old Stop-and-Wait wording is now historical for the default behavior. The
+transport is Go-Back-N capable and the default tuning is:
+
+- `MAX_UDP_PAYLOAD = 1200`
+- `DEFAULT_UDP_WINDOW_SIZE = 8`
+
+This lets the sender keep up to eight unacknowledged DATA packets in flight.
+The 1200-byte payload keeps the application payload larger than the original
+1024-byte setting while still staying comfortably below a typical Ethernet MTU
+after adding the custom 22-byte header plus UDP/IP overhead.

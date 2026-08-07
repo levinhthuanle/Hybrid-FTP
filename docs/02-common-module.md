@@ -25,7 +25,7 @@
 | Payload length | 2 bytes | Số byte dữ liệu ngay sau header |
 | Checksum | 4 bytes | CRC-32 của header (checksum = 0) + payload |
 
-Payload tối đa là 1024 bytes để dễ retransmit. `UDPPacket.from_bytes()` từ chối packet sai magic/version, thiếu dữ liệu, sai độ dài hoặc sai checksum, trước khi receiver ghi dữ liệu vào file.
+Payload tối đa là 1200 bytes để tăng throughput nhưng vẫn giữ datagram dưới MTU Ethernet thông dụng sau khi cộng IP/UDP và custom header. `UDPPacket.from_bytes()` từ chối packet sai magic/version, thiếu dữ liệu, sai độ dài hoặc sai checksum, trước khi receiver ghi dữ liệu vào file.
 
 ## Hai tầng kiểm tra toàn vẹn
 

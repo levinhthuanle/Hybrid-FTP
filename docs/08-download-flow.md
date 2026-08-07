@@ -28,7 +28,7 @@ sequenceDiagram
     FC->>SC: TCP data: gửi <client_udp_port>
     SC->>SC: Kết nối UDP socket tới client_udp_port
 
-    loop Mỗi chunk file (tối đa 1024 bytes)
+    loop Mỗi chunk file (tối đa 1200 bytes)
         SC-->>FC: UDP: custom packet DATA<br/>flags=DATA, tid, sequence, checksum, payload
         FC->>FC: Kiểm tra magic/version/length/CRC-32 và sequence
         FC-->>SC: UDP: custom packet ACK<br/>flags=ACK, tid, acknowledgement=sequence

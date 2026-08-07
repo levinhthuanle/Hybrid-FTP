@@ -15,6 +15,7 @@ import time
 import unittest
 from pathlib import Path
 
+from common.constants import MAX_UDP_PAYLOAD
 from common.config import ClientConfig, ServerConfig
 from common.checksum import sha256_file
 from server import FTPServer
@@ -104,14 +105,14 @@ class UploadTests(TransferTestBase):
         self.assertEqual(stored.read_bytes(), content)
 
     def test_upload_multi_packet(self) -> None:
-        # > 1024 bytes forces multiple UDP packets
-        content = b"X" * 4096
+        # More than one UDP payload forces multiple packets.
+        content = b"X" * (MAX_UDP_PAYLOAD * 4)
         stored = self._upload_file("big.txt", content)
         self.assertEqual(stored.read_bytes(), content)
 
     def test_upload_exact_packet_boundary(self) -> None:
-        # exactly 1024 bytes = one full packet
-        content = b"A" * 1024
+        # Exactly one full UDP payload.
+        content = b"A" * MAX_UDP_PAYLOAD
         stored = self._upload_file("boundary.bin", content)
         self.assertEqual(stored.read_bytes(), content)
 
@@ -205,7 +206,7 @@ class RoundTripTests(TransferTestBase):
         self._roundtrip(b"Z" * 51200, "rt_large.bin")
 
     def test_roundtrip_exact_boundary(self) -> None:
-        self._roundtrip(b"B" * 2048, "rt_boundary.bin")  # exactly 2 packets
+        self._roundtrip(b"B" * (MAX_UDP_PAYLOAD * 2), "rt_boundary.bin")
 
     def test_roundtrip_one_byte(self) -> None:
         self._roundtrip(b"\xff", "rt_one.bin")

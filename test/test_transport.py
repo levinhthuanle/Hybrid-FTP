@@ -7,7 +7,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from common.constants import PacketFlag
+from common.constants import DEFAULT_UDP_WINDOW_SIZE, MAX_UDP_PAYLOAD, PacketFlag
 from common.packet import UDPPacket
 from transport.udp_receiver import UDPReceiver
 from transport.udp_sender import UDPSender
@@ -192,11 +192,11 @@ class SlidingWindowSocket:
 
 
 class ReliableUDPBehaviorTests(unittest.TestCase):
-    def test_transport_defaults_to_window_size_one(self) -> None:
+    def test_transport_uses_configured_default_window_size(self) -> None:
         transfer_id = 41
         fake_socket = AckLossSocket(transfer_id)
         sender = UDPSender(fake_socket, transfer_id, progress=lambda _sent, _total: None)
-        self.assertEqual(sender._window_size, 1)
+        self.assertEqual(sender._window_size, DEFAULT_UDP_WINDOW_SIZE)
 
     def test_sender_retransmits_data_when_ack_is_lost(self) -> None:
         transfer_id = 42
@@ -288,7 +288,7 @@ class ReliableUDPBehaviorTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "payload.bin"
-            path.write_bytes(b"A" * (1024 * 4))
+            path.write_bytes(b"A" * (MAX_UDP_PAYLOAD * 4))
             UDPSender(
                 fake_socket,
                 transfer_id,

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import shlex
 import sys
+import socket
 from pathlib import Path
 
 from common.config import ClientConfig
@@ -54,6 +55,7 @@ class CLI:
         self._client: FTPClient | None = None
         self._upload_root = Path("client/upload")
         self._download_root = Path("client/download")
+        self._active_listener: socket.socket | None = None
         self._upload_root.mkdir(parents=True, exist_ok=True)
         self._download_root.mkdir(parents=True, exist_ok=True)
 
@@ -182,12 +184,14 @@ class CLI:
                 if not self._require_exact_args(args, 1, "PORT <h1,h2,h3,h4,p1,p2>"):
                     return
                 self._require_connection()
-                self._client.port(args[0])
+                self._close_active_listener()
+                self._active_listener = self._client._open_active_listener(args[0])
                 print("Active mode configured.")
             case "PASV":
                 if not self._require_exact_args(args, 0, "PASV"):
                     return
                 self._require_connection()
+                self._close_active_listener()
                 print(self._client.pasv())
             case "STOR":
                 if not self._require_exact_args(args, 1, "STOR <filename>"):
@@ -195,7 +199,11 @@ class CLI:
                 self._require_connection()
                 local = self._upload_file(args[0])
                 print(f"Uploading {local} -> {args[0]} ...")
-                digest = self._client.stor(local, args[0])
+                if self._active_listener is not None:
+                    digest = self._client.upload_active(local, args[0], listener=self._active_listener)
+                    self._active_listener = None
+                else:
+                    digest = self._client.stor(local, args[0])
                 print(f"Upload complete. SHA-256: {digest}")
             case "RETR":
                 if not self._require_exact_args(args, 1, "RETR <filename>"):
@@ -203,7 +211,11 @@ class CLI:
                 self._require_connection()
                 local = self._download_file(args[0])
                 print(f"Downloading {args[0]} -> {local} ...")
-                digest = self._client.download(args[0], local)
+                if self._active_listener is not None:
+                    digest = self._client.download_active(args[0], local, listener=self._active_listener)
+                    self._active_listener = None
+                else:
+                    digest = self._client.download(args[0], local)
                 print(f"Download complete. SHA-256: {digest}")
                 print(f"Saved to: {local}")
             case "STOU":
@@ -300,6 +312,7 @@ class CLI:
             raise FTPError(0, "Not connected. Use CONNECT first.")
 
     def _safe_quit(self) -> None:
+        self._close_active_listener()
         if self._client is not None:
             try:
                 self._client.quit()
@@ -307,3 +320,11 @@ class CLI:
                 self._client.close()
             self._client = None
             print("Disconnected.")
+
+    def _close_active_listener(self) -> None:
+        if self._active_listener is not None:
+            try:
+                self._active_listener.close()
+            except OSError:
+                pass
+            self._active_listener = None

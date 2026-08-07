@@ -9,9 +9,9 @@ CONTROL_LINE_ENDING = "\r\n"
 # A UDP datagram starts with this value so unrelated UDP traffic can be ignored.
 UDP_MAGIC = b"HF"
 UDP_VERSION = 1
-MAX_UDP_PAYLOAD = 1_024
+MAX_UDP_PAYLOAD = 1_450
 MAX_CONTROL_LINE = 4_096
-DEFAULT_UDP_WINDOW_SIZE = 1
+DEFAULT_UDP_WINDOW_SIZE = 16
 
 
 class PacketFlag(IntFlag):
