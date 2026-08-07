@@ -345,10 +345,11 @@ class FTPClient:
         return self._verify_transfer_digest(digest, msg)
 
     # ------------------------------------------------------------------
-    def upload_active(self, local_path: Path, remote_name: str) -> str:
+    def upload_active(self, local_path: Path, remote_name: str, listener: socket.socket | None = None) -> str:
         """Upload with active-mode TCP data setup and reliable UDP payloads."""
         from transport.udp_sender import UDPSender, TransferError
-        listener = self._open_active_listener()
+        if listener is None:
+            listener = self._open_active_listener()
         data_sock: socket.socket | None = None
         udp_sock: socket.socket | None = None
         try:
@@ -379,7 +380,7 @@ class FTPClient:
             raise FTPError(code, msg)
         return self._verify_transfer_digest(digest, msg)
 
-    def download_active(self, remote_name: str, local_path: Path) -> str:
+    def download_active(self, remote_name: str, local_path: Path, listener: socket.socket | None = None) -> str:
         """Download with active-mode TCP data setup and reliable UDP payloads."""
         from transport.udp_receiver import UDPReceiver, TransferError
         local_path.parent.mkdir(parents=True, exist_ok=True)
@@ -387,7 +388,8 @@ class FTPClient:
             total_bytes = self.size(remote_name)
         except FTPError:
             total_bytes = 0
-        listener = self._open_active_listener()
+        if listener is None:
+            listener = self._open_active_listener()
         data_sock: socket.socket | None = None
         udp_sock: socket.socket | None = None
         try:
@@ -472,9 +474,27 @@ class FTPClient:
         port = int(nums[4]) * 256 + int(nums[5])
         return socket.create_connection((host, port), timeout=10)
 
-    def _open_active_listener(self) -> socket.socket:
-        """Listen locally, advertise PORT, and return the pending data listener."""
-        bind_host = self._local_bind_host()
+    def _open_active_listener(self, endpoint: str | None = None) -> socket.socket:
+        """Listen locally, advertise PORT, and return the pending data listener.
+
+        If *endpoint* is provided, bind the listener to the exact host/port tuple
+        encoded as ``h1,h2,h3,h4,p1,p2`` so a prior ``PORT`` command can be used
+        for a later active transfer.
+        """
+        if endpoint is None:
+            bind_host = self._local_bind_host()
+            bind_port = 0
+        else:
+            try:
+                parts = [int(part) for part in endpoint.split(",")]
+                if len(parts) != 6 or any(not 0 <= part <= 255 for part in parts):
+                    raise ValueError
+                bind_host = ".".join(str(part) for part in parts[:4])
+                bind_port = parts[4] * 256 + parts[5]
+                if bind_port == 0:
+                    raise ValueError
+            except ValueError as exc:
+                raise FTPError(501, "Invalid PORT endpoint") from exc
         try:
             octets = [int(part) for part in bind_host.split(".")]
             if len(octets) != 4 or any(not 0 <= octet <= 255 for octet in octets):
@@ -483,7 +503,7 @@ class FTPClient:
             raise FTPError(501, "Active mode requires an IPv4 client host") from exc
         listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        listener.bind((bind_host, 0))
+        listener.bind((bind_host, bind_port))
         listener.listen(1)
         listener.settimeout(10)
         _, port = listener.getsockname()
