@@ -1,14 +1,14 @@
-"""Reliable UDP receiver — Stop-and-Wait ARQ, duplicate filtering, in-order assembly.
+"""Reliable UDP receiver — Go-Back-N receiver with cumulative ACKs.
 
 Protocol overview
 -----------------
 1. Receiver listens on a bound UDP socket for DATA packets from the sender.
 2. On receiving a well-formed DATA packet with the expected sequence number, the
-   payload is written to the output file and an ACK is sent back.
-3. Duplicate packets (already-seen sequence number) are silently ACK-ed again so
-   the sender can advance.
-4. Out-of-order packets are dropped; the last ACK is resent to trigger a
-   retransmit from the sender.
+   payload is written to the output file and a cumulative ACK is sent back.
+3. Duplicate packets are ACK-ed again with the same cumulative ACK so the
+   sender can advance or recover.
+4. Out-of-order packets are dropped; the current cumulative ACK is resent to
+   trigger a Go-Back-N retransmit from the sender.
 5. When a FIN packet arrives, a FIN_ACK is sent and the function returns.
 6. The SHA-256 digest of the assembled file is returned for integrity check.
 """
@@ -22,8 +22,8 @@ from pathlib import Path
 from typing import Callable
 
 from common.checksum import sha256_file
-from common.constants import PacketFlag
-from common.packet import UDPPacket, PacketError
+from common.constants import DEFAULT_UDP_WINDOW_SIZE, PacketFlag
+from common.packet import PacketError, UDPPacket
 
 ProgressCallback = Callable[[int, int], None]  # (bytes_received, total_bytes)
 
@@ -49,7 +49,7 @@ class TransferError(IOError):
 
 
 class UDPReceiver:
-    """Receive a single file reliably over UDP using Stop-and-Wait ARQ.
+    """Receive a single file reliably over UDP using Go-Back-N semantics.
 
     Parameters
     ----------
@@ -69,6 +69,7 @@ class UDPReceiver:
         transfer_id: int,
         timeout_s: float = 10.0,
         total_bytes: int = 0,
+        window_size: int = DEFAULT_UDP_WINDOW_SIZE,
         progress: ProgressCallback | None = None,
         cancel_event: threading.Event | None = None,
     ) -> None:
@@ -76,6 +77,7 @@ class UDPReceiver:
         self._tid = transfer_id
         self._timeout = timeout_s
         self._total = total_bytes
+        self._window_size = max(1, window_size)
         self._progress = progress
         self._cancel_event = cancel_event
         self._sock.settimeout(timeout_s)
@@ -99,49 +101,41 @@ class UDPReceiver:
                     raise TransferError("receive timeout waiting for next packet")
 
                 try:
-                    pkt = UDPPacket.from_bytes(raw)
+                    packet = UDPPacket.from_bytes(raw)
                 except PacketError:
                     continue
 
-                if pkt.transfer_id != self._tid:
+                if packet.transfer_id != self._tid:
                     continue
 
                 if sender_addr is None:
                     sender_addr = addr
 
-                if PacketFlag.FIN in pkt.flags:
+                if PacketFlag.FIN in packet.flags:
                     fin_ack = UDPPacket(
                         PacketFlag.FIN_ACK,
                         self._tid,
-                        acknowledgement=pkt.sequence,
+                        acknowledgement=packet.sequence,
                     )
                     self._sock.sendto(fin_ack.to_bytes(), sender_addr)
                     break
 
-                if PacketFlag.DATA not in pkt.flags:
+                if PacketFlag.DATA not in packet.flags:
                     continue
 
-                if pkt.sequence == expected_seq:
-                    fh.write(pkt.payload)
-                    received += len(pkt.payload)
+                if packet.sequence == expected_seq:
+                    fh.write(packet.payload)
+                    received += len(packet.payload)
                     cb(received, self._total)
-                    ack = UDPPacket(
-                        PacketFlag.ACK,
-                        self._tid,
-                        acknowledgement=expected_seq,
-                    )
-                    self._sock.sendto(ack.to_bytes(), sender_addr)
                     expected_seq += 1
-                else:
-                    last_ack_seq = expected_seq - 1 if expected_seq > 0 else 0
-                    ack = UDPPacket(
-                        PacketFlag.ACK,
-                        self._tid,
-                        acknowledgement=last_ack_seq,
-                    )
-                    self._sock.sendto(ack.to_bytes(), sender_addr)
 
-        # ensure final newline if total was unknown
+                ack = UDPPacket(
+                    PacketFlag.ACK,
+                    self._tid,
+                    acknowledgement=expected_seq,
+                )
+                self._sock.sendto(ack.to_bytes(), sender_addr)
+
         if self._total <= 0:
             sys.stderr.write(f"\r  [{'#'*30}]  {received:,} bytes  \n")
             sys.stderr.flush()

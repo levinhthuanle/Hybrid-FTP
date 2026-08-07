@@ -11,6 +11,7 @@ UDP_MAGIC = b"HF"
 UDP_VERSION = 1
 MAX_UDP_PAYLOAD = 1_024
 MAX_CONTROL_LINE = 4_096
+DEFAULT_UDP_WINDOW_SIZE = 1
 
 
 class PacketFlag(IntFlag):
@@ -21,4 +22,3 @@ class PacketFlag(IntFlag):
     FIN = 0x04
     FIN_ACK = 0x08
     ERROR = 0x10
-

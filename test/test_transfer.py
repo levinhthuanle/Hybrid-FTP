@@ -319,5 +319,48 @@ class ActiveAndAbortTests(TransferTestBase):
         self.assertEqual(code, 200)
 
 
+class SlidingWindowTransferTests(TransferTestBase):
+
+    def setUp(self) -> None:
+        self._storage = tempfile.TemporaryDirectory()
+        self._downloads = tempfile.TemporaryDirectory()
+
+        port = _free_port()
+        self._srv_cfg = ServerConfig(
+            host="127.0.0.1",
+            control_port=port,
+            storage_root=Path(self._storage.name),
+            udp_timeout_seconds=0.5,
+            udp_max_retries=10,
+            udp_window_size=3,
+        )
+        self._server = FTPServer(self._srv_cfg)
+        self._thread = threading.Thread(target=self._server.start, daemon=True)
+        self._thread.start()
+        time.sleep(0.05)
+
+        self._cli_cfg = ClientConfig(
+            host="127.0.0.1",
+            control_port=port,
+            download_root=Path(self._downloads.name),
+            udp_window_size=3,
+        )
+        self._client = FTPClient(self._cli_cfg)
+        self._client.connect()
+        self._client.login("admin", "1234")
+
+    def test_roundtrip_with_window_size_three(self) -> None:
+        content = bytes(range(256)) * 16
+        with tempfile.TemporaryDirectory() as upload_dir:
+            source = Path(upload_dir) / "window3.bin"
+            source.write_bytes(content)
+            upload_digest = self._client.upload(source, "window3.bin")
+
+        destination = Path(self._downloads.name) / "window3.bin"
+        download_digest = self._client.download("window3.bin", destination)
+        self.assertEqual(upload_digest, download_digest)
+        self.assertEqual(destination.read_bytes(), content)
+
+
 if __name__ == "__main__":
     unittest.main()

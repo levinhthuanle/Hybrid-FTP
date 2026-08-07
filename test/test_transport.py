@@ -37,7 +37,7 @@ class AckLossSocket:
             return UDPPacket(
                 PacketFlag.ACK,
                 self.transfer_id,
-                acknowledgement=last.sequence,
+                acknowledgement=last.sequence + 1,
             ).to_bytes()
 
         if PacketFlag.FIN in last.flags:
@@ -88,7 +88,7 @@ class DataLossSocket(AckLossSocket):
             return UDPPacket(
                 PacketFlag.ACK,
                 self.transfer_id,
-                acknowledgement=last.sequence,
+                acknowledgement=last.sequence + 1,
             ).to_bytes()
         if PacketFlag.FIN in last.flags:
             return UDPPacket(
@@ -120,7 +120,7 @@ class FinLossSocket:
             return UDPPacket(
                 PacketFlag.ACK,
                 self.transfer_id,
-                acknowledgement=last.sequence,
+                acknowledgement=last.sequence + 1,
             ).to_bytes()
         if PacketFlag.FIN in last.flags:
             self.fin_recv_calls += 1
@@ -147,7 +147,57 @@ class OutOfOrderDataSocket(DuplicateDataSocket):
         ]
 
 
+class SlidingWindowSocket:
+    """Fake connected UDP socket that ACKs a whole sender window at once."""
+
+    def __init__(self, transfer_id: int) -> None:
+        self.transfer_id = transfer_id
+        self.sent_packets: list[UDPPacket] = []
+        self.recv_calls = 0
+
+    def settimeout(self, timeout: float) -> None:
+        self.timeout = timeout
+
+    def send(self, data: bytes) -> int:
+        self.sent_packets.append(UDPPacket.from_bytes(data))
+        return len(data)
+
+    def recv(self, size: int) -> bytes:
+        last = self.sent_packets[-1]
+        if PacketFlag.FIN in last.flags:
+            return UDPPacket(
+                PacketFlag.FIN_ACK,
+                self.transfer_id,
+                acknowledgement=last.sequence,
+            ).to_bytes()
+
+        self.recv_calls += 1
+        if self.recv_calls == 1:
+            return UDPPacket(
+                PacketFlag.ACK,
+                self.transfer_id,
+                acknowledgement=3,
+            ).to_bytes()
+
+        highest_seq = max(
+            pkt.sequence
+            for pkt in self.sent_packets
+            if PacketFlag.DATA in pkt.flags
+        )
+        return UDPPacket(
+            PacketFlag.ACK,
+            self.transfer_id,
+            acknowledgement=highest_seq + 1,
+        ).to_bytes()
+
+
 class ReliableUDPBehaviorTests(unittest.TestCase):
+    def test_transport_defaults_to_window_size_one(self) -> None:
+        transfer_id = 41
+        fake_socket = AckLossSocket(transfer_id)
+        sender = UDPSender(fake_socket, transfer_id, progress=lambda _sent, _total: None)
+        self.assertEqual(sender._window_size, 1)
+
     def test_sender_retransmits_data_when_ack_is_lost(self) -> None:
         transfer_id = 42
         fake_socket = AckLossSocket(transfer_id)
@@ -182,9 +232,8 @@ class ReliableUDPBehaviorTests(unittest.TestCase):
             self.assertEqual(dest.read_bytes(), b"abcdef")
 
         ack_packets = [p for p in fake_socket.sent_acks if PacketFlag.ACK in p.flags]
-        self.assertEqual([p.acknowledgement for p in ack_packets], [0, 0, 1])
+        self.assertEqual([p.acknowledgement for p in ack_packets], [1, 1, 2])
         self.assertTrue(any(PacketFlag.FIN_ACK in p.flags for p in fake_socket.sent_acks))
-
 
     def test_sender_retransmits_when_data_is_dropped(self) -> None:
         transfer_id = 9
@@ -215,7 +264,7 @@ class ReliableUDPBehaviorTests(unittest.TestCase):
             ).receive_file(dest)
             self.assertEqual(dest.read_bytes(), b"abcdef")
         ack_packets = [p for p in fake_socket.sent_acks if PacketFlag.ACK in p.flags]
-        self.assertEqual([p.acknowledgement for p in ack_packets], [0, 0, 1])
+        self.assertEqual([p.acknowledgement for p in ack_packets], [0, 1, 2])
 
     def test_sender_retransmits_fin_when_fin_is_dropped(self) -> None:
         transfer_id = 11
@@ -232,6 +281,25 @@ class ReliableUDPBehaviorTests(unittest.TestCase):
             ).send_file(path)
         fin_packets = [p for p in fake_socket.sent_packets if PacketFlag.FIN in p.flags]
         self.assertEqual([p.sequence for p in fin_packets], [1, 1])
+
+    def test_sender_pipelines_multiple_packets_with_sliding_window(self) -> None:
+        transfer_id = 13
+        fake_socket = SlidingWindowSocket(transfer_id)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "payload.bin"
+            path.write_bytes(b"A" * (1024 * 4))
+            UDPSender(
+                fake_socket,
+                transfer_id,
+                timeout_s=0.01,
+                max_retries=2,
+                window_size=3,
+                progress=lambda _sent, _total: None,
+            ).send_file(path)
+
+        data_packets = [p for p in fake_socket.sent_packets if PacketFlag.DATA in p.flags]
+        self.assertEqual([p.sequence for p in data_packets[:3]], [0, 1, 2])
 
 
 if __name__ == "__main__":

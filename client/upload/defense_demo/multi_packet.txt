@@ -1,0 +1,41 @@
+Hybrid FTP multi-packet demo payload.
+Line 001: reliable UDP should retransmit when ACK is missing.
+Line 002: reliable UDP should keep sequence ordering stable.
+Line 003: reliable UDP should reject duplicated packets.
+Line 004: reliable UDP should preserve file integrity end to end.
+Line 005: this file is intentionally longer than a single payload chunk.
+Line 006: use it to explain why UDP alone is not sufficient.
+Line 007: the client sends FTP control commands over TCP.
+Line 008: the server coordinates a transfer-specific UDP port.
+Line 009: the sender transmits one chunk and waits for ACK.
+Line 010: on timeout, the sender retransmits the same sequence number.
+Line 011: the receiver validates CRC before acknowledging the packet.
+Line 012: only in-order validated data is written to disk.
+Line 013: at the end of the transfer, both sides compute SHA-256.
+Line 014: the digest in the 226 reply must match the local digest.
+Line 015: this line exists mostly to make the file longer.
+Line 016: this line exists mostly to make the file longer.
+Line 017: this line exists mostly to make the file longer.
+Line 018: this line exists mostly to make the file longer.
+Line 019: this line exists mostly to make the file longer.
+Line 020: this line exists mostly to make the file longer.
+Line 021: this line exists mostly to make the file longer.
+Line 022: this line exists mostly to make the file longer.
+Line 023: this line exists mostly to make the file longer.
+Line 024: this line exists mostly to make the file longer.
+Line 025: this line exists mostly to make the file longer.
+Line 026: this line exists mostly to make the file longer.
+Line 027: this line exists mostly to make the file longer.
+Line 028: this line exists mostly to make the file longer.
+Line 029: this line exists mostly to make the file longer.
+Line 030: this line exists mostly to make the file longer.
+Line 031: this line exists mostly to make the file longer.
+Line 032: this line exists mostly to make the file longer.
+Line 033: this line exists mostly to make the file longer.
+Line 034: this line exists mostly to make the file longer.
+Line 035: this line exists mostly to make the file longer.
+Line 036: this line exists mostly to make the file longer.
+Line 037: this line exists mostly to make the file longer.
+Line 038: this line exists mostly to make the file longer.
+Line 039: this line exists mostly to make the file longer.
+Line 040: this line exists mostly to make the file longer.

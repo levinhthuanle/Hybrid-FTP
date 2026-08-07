@@ -1,0 +1,8 @@
+Hybrid FTP demo text file.
+Use this for USER/PASS session setup, STOR/RETR, HASH, SIZE, MDTM, STAT, and TYPE A.
+This file is intentionally small so the professor can verify the content quickly after download.
+
+Expected talking point:
+- Control commands run over TCP.
+- File bytes travel over reliable UDP.
+- SHA-256 is checked after transfer.

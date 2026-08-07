@@ -633,6 +633,7 @@ class ClientSession:
                 tid,
                 timeout_s=self._config.udp_timeout_seconds,
                 max_retries=self._config.udp_max_retries,
+                window_size=self._config.udp_window_size,
                 cancel_event=cancel,
             )
             digest = sender.send_file(path)
@@ -660,6 +661,7 @@ class ClientSession:
                 udp_sock,
                 tid,
                 timeout_s=max(self._config.udp_timeout_seconds * 20, 10.0),
+                window_size=self._config.udp_window_size,
                 cancel_event=cancel,
             )
             digest = receiver.receive_file(temp_dest)

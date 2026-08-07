@@ -15,6 +15,7 @@ class ServerConfig:
     control_backlog: int = 16
     udp_timeout_seconds: float = 0.5
     udp_max_retries: int = 10
+    udp_window_size: int = 1
 
 
 @dataclass(frozen=True, slots=True)
@@ -23,4 +24,4 @@ class ClientConfig:
     control_port: int = 2121
     download_root: Path = Path("client/download")
     upload_root: Path = Path("client/upload")
-
+    udp_window_size: int = 1

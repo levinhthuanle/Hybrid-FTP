@@ -222,7 +222,11 @@ class FTPClient:
         udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         udp_sock.connect((self._cfg.host, udp_port))
         try:
-            sender = UDPSender(udp_sock, tid)
+            sender = UDPSender(
+                udp_sock,
+                tid,
+                window_size=self._cfg.udp_window_size,
+            )
             digest = sender.send_file(local_path)
         except TransferError as exc:
             raise FTPError(0, str(exc)) from exc
@@ -264,7 +268,12 @@ class FTPClient:
         data_sock.sendall(f"{my_udp_port}\n".encode())
 
         try:
-            receiver = UDPReceiver(udp_sock, tid, total_bytes=total_bytes)
+            receiver = UDPReceiver(
+                udp_sock,
+                tid,
+                total_bytes=total_bytes,
+                window_size=self._cfg.udp_window_size,
+            )
             digest = receiver.receive_file(local_path)
         except TransferError as exc:
             raise FTPError(0, str(exc)) from exc
@@ -293,7 +302,11 @@ class FTPClient:
             udp_port, tid = self._parse_udp_params(msg)
             udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             udp_sock.connect((self._cfg.host, udp_port))
-            digest = UDPSender(udp_sock, tid).send_file(local_path)
+            digest = UDPSender(
+                udp_sock,
+                tid,
+                window_size=self._cfg.udp_window_size,
+            ).send_file(local_path)
         except TransferError as exc:
             raise FTPError(0, str(exc)) from exc
         finally:
@@ -330,7 +343,12 @@ class FTPClient:
             udp_sock.bind((self._cfg.host, 0))
             _, my_udp_port = udp_sock.getsockname()
             data_sock.sendall(f"{my_udp_port}\n".encode())
-            digest = UDPReceiver(udp_sock, tid, total_bytes=total_bytes).receive_file(local_path)
+            digest = UDPReceiver(
+                udp_sock,
+                tid,
+                total_bytes=total_bytes,
+                window_size=self._cfg.udp_window_size,
+            ).receive_file(local_path)
         except TransferError as exc:
             raise FTPError(0, str(exc)) from exc
         finally:
