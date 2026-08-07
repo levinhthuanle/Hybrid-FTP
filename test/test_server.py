@@ -236,6 +236,26 @@ class TransferSetupTests(ServerTestBase):
         self.assertTrue(reply.startswith("227"), f"Expected 227, got: {reply}")
         c.close()
 
+    def test_pasv_advertises_connected_interface_when_bound_all_interfaces(self) -> None:
+        self._server.stop()
+        port = _find_free_port()
+        self._config = ServerConfig(
+            host="0.0.0.0",
+            control_port=port,
+            storage_root=Path(self._tmpdir.name),
+        )
+        self._server = FTPServer(self._config)
+        self._thread = threading.Thread(target=self._server.start, daemon=True)
+        self._thread.start()
+        time.sleep(0.05)
+
+        c = self.connect()
+        self.login(c)
+        reply = c.cmd("PASV")
+        nums = reply[reply.index("(") + 1 : reply.index(")")].split(",")
+        self.assertEqual(".".join(nums[:4]), "127.0.0.1")
+        c.close()
+
     def test_port(self) -> None:
         c = self.connect()
         self.login(c)

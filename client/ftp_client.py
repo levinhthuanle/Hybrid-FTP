@@ -263,7 +263,7 @@ class FTPClient:
 
         # bind client UDP socket and tell server our port via data socket
         udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        udp_sock.bind(("127.0.0.1", 0))
+        udp_sock.bind((self._local_bind_host(), 0))
         _, my_udp_port = udp_sock.getsockname()
         data_sock.sendall(f"{my_udp_port}\n".encode())
 
@@ -340,7 +340,7 @@ class FTPClient:
             listener = None
             udp_port, tid = self._parse_udp_params(msg)
             udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            udp_sock.bind((self._cfg.host, 0))
+            udp_sock.bind((self._local_bind_host(), 0))
             _, my_udp_port = udp_sock.getsockname()
             data_sock.sendall(f"{my_udp_port}\n".encode())
             digest = UDPReceiver(
@@ -416,15 +416,16 @@ class FTPClient:
 
     def _open_active_listener(self) -> socket.socket:
         """Listen locally, advertise PORT, and return the pending data listener."""
+        bind_host = self._local_bind_host()
         try:
-            octets = [int(part) for part in self._cfg.host.split(".")]
+            octets = [int(part) for part in bind_host.split(".")]
             if len(octets) != 4 or any(not 0 <= octet <= 255 for octet in octets):
                 raise ValueError
         except ValueError as exc:
             raise FTPError(501, "Active mode requires an IPv4 client host") from exc
         listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        listener.bind((self._cfg.host, 0))
+        listener.bind((bind_host, 0))
         listener.listen(1)
         listener.settimeout(10)
         _, port = listener.getsockname()
@@ -435,6 +436,13 @@ class FTPClient:
             listener.close()
             raise FTPError(code, msg)
         return listener
+
+    def _local_bind_host(self) -> str:
+        """Return the client's local IPv4 address for inbound data sockets."""
+        if self._sock is None:
+            return "127.0.0.1"
+        local_host = self._sock.getsockname()[0]
+        return local_host if local_host not in {"0.0.0.0", "::"} else "127.0.0.1"
 
     @staticmethod
     def _accept_active_data(listener: socket.socket) -> socket.socket:

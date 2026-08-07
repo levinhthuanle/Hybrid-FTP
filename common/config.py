@@ -9,6 +9,7 @@ from pathlib import Path
 @dataclass(frozen=True, slots=True)
 class ServerConfig:
     host: str = "127.0.0.1"
+    advertise_host: str | None = None
     control_port: int = 2121
     udp_port: int = 2122
     storage_root: Path = Path("server/storage")

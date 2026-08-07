@@ -419,9 +419,18 @@ class ClientSession:
         _, port = sock.getsockname()
         self._pasv_sock = sock
         self._data_mode = DataMode.PASSIVE
-        h = self._config.host.replace(".", ",")
+        h = self._pasv_host().replace(".", ",")
         p1, p2 = port >> 8, port & 0xFF
         self._send(227, f"Entering Passive Mode ({h},{p1},{p2})")
+
+    def _pasv_host(self) -> str:
+        """Return the IPv4 address the client should use for PASV data sockets."""
+        if self._config.advertise_host is not None:
+            return self._config.advertise_host
+        local_host = self._conn.getsockname()[0]
+        if local_host not in {"0.0.0.0", "::"}:
+            return local_host
+        return self._config.host
 
     # ------------------------------------------------------------------
     # Transfer commands (stubs — RDT layer fills these in Phase 2)
