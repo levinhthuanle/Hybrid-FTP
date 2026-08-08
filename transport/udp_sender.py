@@ -67,7 +67,7 @@ class UDPSender:
     window_size:
         Maximum number of unacknowledged DATA packets allowed in flight.
     """
-
+    count_ack = 0
     def __init__(
         self,
         sock: socket.socket,
@@ -117,13 +117,17 @@ class UDPSender:
                     continue
 
                 ack_no = self._wait_for_cumulative_ack(base_seq, next_seq)
+                
                 if ack_no is None:
+                    print("No ACK received, retransmitting window")
                     if retries_without_progress >= self._max_retries:
                         raise TransferError(
                             f"no ACK progress after {self._max_retries} retries for window starting at seq={base_seq}"
                         )
                     retries_without_progress += 1
                     for seq in range(base_seq, next_seq):
+                        self.count_ack += 1
+                        print(seq, self.count_ack)
                         self._raise_if_cancelled()
                         self._sock.send(in_flight[seq][0])
                     continue
